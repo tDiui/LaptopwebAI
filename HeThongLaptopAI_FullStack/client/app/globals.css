@@ -1,0 +1,30 @@
+﻿@import "tailwindcss"; /* Đây là dòng bắt buộc để fix lỗi 'unknown utility class' */
+
+@theme {
+    /* Định nghĩa bảng màu Deep Navy theo ảnh mẫu image_268075.jpg */
+    --color-deep-navy: #0b1121;
+    --color-card-navy: #1e293b;
+    --color-neon-cyan: #22d3ee;
+}
+
+/* Sử dụng @layer để Tailwind hiểu được các lớp @apply */
+@layer base {
+    body {
+        @apply bg-deep-navy text-slate-100 antialiased;
+        font-family: 'Inter', sans-serif;
+    }
+}
+
+@layer components {
+    /* Hiệu ứng nút bấm phát sáng */
+    .btn-cyan {
+        @apply bg-neon-cyan hover:bg-cyan-400 text-slate-900 font-bold px-6 py-2 rounded-xl transition-all;
+        box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+    }
+
+    /* Card sản phẩm phong cách AI */
+    .glass-card {
+        @apply bg-card-navy/50 border border-white/5 rounded-3xl p-5 transition-all;
+        @apply hover:bg-card-navy/80 hover:scale-[1.02] hover:border-neon-cyan/30;
+    }
+}
