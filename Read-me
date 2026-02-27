@@ -1,0 +1,13 @@
+Read-me
+Chạy Server:
+cd server
+node index.js
+
+
+Chạy Client:
+cd client
+npm run dev
+
+Cách chạy kiểm tra
+cd server
+node test-db.js
