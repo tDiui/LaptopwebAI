@@ -1,13 +1,41 @@
-Read-me
-Chạy Server:
+📦 Cài Đặt và Cấu Hình
+1. Cài đặt thư viện
+Mở Terminal và chạy lệnh cho cả hai thư mục:
+
+Bash
+# Tại thư mục server
+cd server
+npm install
+
+# Tại thư mục client
+cd ../client
+npm install
+2. Cấu hình biến môi trường (.env)
+Tạo file .env bên trong thư mục server (File này thường không có sẵn khi Pull từ Git):
+
+Đoạn mã
+PORT=5000
+DB_SERVER=localhost\SQLEXPRESS
+DB_NAME=QLCuaHangLaptop
+3. Thiết lập Database
+Mở SQL Server Management Studio (SSMS).
+
+Tạo Database tên: QLCuaHangLaptop.
+
+Chạy script SQL (đính kèm trong thư mục database_script/) để tạo bảng SanPham và chèn dữ liệu mẫu.
+
+🏃 Cách Chạy Dự Án
+Cần chạy đồng thời cả Backend và Frontend:
+
+Chạy Backend:
+
+Bash
 cd server
 node index.js
+# Server sẽ chạy tại http://localhost:5000
+Chạy Frontend:
 
-
-Chạy Client:
+Bash
 cd client
 npm run dev
-
-Cách chạy kiểm tra
-cd server
-node test-db.js
+# Truy cập website tại http://localhost:3000
