@@ -39,3 +39,10 @@ Bash
 cd client
 npm run dev
 # Truy cập website tại http://localhost:3000
+
+cài đặt trang admin
+1. Cài đặt thư viện cần thiết
+Mở terminal tại thư mục client và chạy lệnh:
+
+Bash
+npm install recharts lucide-react
