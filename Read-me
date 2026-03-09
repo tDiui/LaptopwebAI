@@ -46,3 +46,6 @@ Mở terminal tại thư mục client và chạy lệnh:
 
 Bash
 npm install recharts lucide-react
+
+Cài đặt multer
+npm install multer
