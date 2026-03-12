@@ -28,12 +28,12 @@ router.get('/stats', async (req, res) => {
         let pool = await sql.connect(dbConfig);
         const stats = await pool.request().query(`
             SELECT 
-                (SELECT SUM(TongTien) FROM DonHang WHERE IsSpam = 0) as TotalRevenue,
+                (SELECT ISNULL(SUM(TongTien), 0) FROM DonHang WHERE IsSpam = 0) as TotalRevenue,
                 (SELECT COUNT(*) FROM DonHang) as TotalOrders,
                 (SELECT COUNT(*) FROM TaiKhoan WHERE VaiTro = 'Customer') as TotalCustomers,
                 (SELECT COUNT(*) FROM DonHang WHERE IsSpam = 1) as SpamBlocked
-            FROM SanPham
         `);
+        // Không cần "FROM SanPham" ở cuối câu truy vấn
         res.json(stats.recordset[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -77,3 +77,110 @@ router.post('/products', upload.single('HinhAnh'), async (req, res) => {
 });
 
 module.exports = router;
+
+// 4. Xóa (Ẩn) sản phẩm - Soft Delete
+router.delete('/products/:id', async (req, res) => {
+    const maSP = req.params.id;
+
+    try {
+        let pool = await sql.connect(dbConfig);
+
+        // Lệnh DELETE để xóa hẳn khỏi database
+        const result = await pool.request()
+            .input('MaSP', sql.Int, maSP)
+            .query("DELETE FROM SanPham WHERE MaSP = @MaSP");
+
+        // rowsAffected[0] trả về số dòng bị ảnh hưởng (số dòng bị xóa)
+        if (result.rowsAffected[0] > 0) {
+            res.json({ message: "Đã xóa vĩnh viễn sản phẩm khỏi cơ sở dữ liệu!" });
+        } else {
+            res.status(404).json({ error: "Không tìm thấy sản phẩm này để xóa." });
+        }
+    } catch (err) {
+        console.error("Lỗi xóa sản phẩm:", err.message);
+        res.status(500).json({ error: "Lỗi hệ thống khi xóa sản phẩm", details: err.message });
+    }
+});
+
+// 5. Cập nhật sản phẩm
+router.put('/products/:id', upload.single('HinhAnh'), async (req, res) => {
+    const maSP = req.params.id;
+    const p = req.body;
+    const hinhAnhUrl = req.file ? `http://localhost:5000/uploads/${req.file.filename}` : null;
+
+    try {
+        let pool = await sql.connect(dbConfig);
+
+        // Tạo câu lệnh SQL động (có hoặc không có cập nhật ảnh)
+        let query = `
+            UPDATE SanPham 
+            SET TenSP = @TenSP, GiaBan = @GiaBan, SoLuongTon = @SoLuongTon, 
+                CPU = @CPU, RAM = @RAM, VGA = @VGA
+        `;
+
+        if (hinhAnhUrl) {
+            query += `, HinhAnh = @HinhAnh`;
+        }
+
+        query += ` WHERE MaSP = @MaSP`;
+
+        const request = pool.request()
+            .input('MaSP', sql.Int, maSP)
+            .input('TenSP', sql.NVarChar, p.TenSP)
+            .input('GiaBan', sql.Decimal, p.GiaBan)
+            .input('SoLuongTon', sql.Int, p.SoLuongTon)
+            .input('CPU', sql.NVarChar, p.CPU)
+            .input('RAM', sql.NVarChar, p.RAM)
+            .input('VGA', sql.NVarChar, p.VGA);
+
+        if (hinhAnhUrl) {
+            request.input('HinhAnh', sql.NVarChar, hinhAnhUrl);
+        }
+
+        await request.query(query);
+        res.json({ message: "Cập nhật sản phẩm thành công!" });
+    } catch (err) {
+        console.error("Lỗi cập nhật sản phẩm:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
+// QUẢN LÝ KHÁCH HÀNG (TaiKhoan)
+// ==========================================
+
+// 6. Lấy danh sách khách hàng
+router.get('/customers', async (req, res) => {
+    try {
+        let pool = await sql.connect(dbConfig);
+        // Chỉ lấy những tài khoản có vai trò là Customer, không lấy mật khẩu
+        let result = await pool.request().query(`
+            SELECT MaTK, HoTen, Email, SoDienThoai, DiaChi, NgayTao, TrangThai 
+            FROM TaiKhoan 
+            WHERE VaiTro = 'Customer' 
+            ORDER BY NgayTao DESC
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 7. Khóa / Mở khóa tài khoản
+router.put('/customers/:id/status', async (req, res) => {
+    const maTK = req.params.id;
+    const { trangThaiMoi } = req.body; // Gửi 1 (Mở khóa) hoặc 0 (Khóa) từ Frontend
+
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('MaTK', sql.Int, maTK)
+            .input('TrangThai', sql.Bit, trangThaiMoi)
+            .query("UPDATE TaiKhoan SET TrangThai = @TrangThai WHERE MaTK = @MaTK");
+
+        res.json({ message: "Cập nhật trạng thái tài khoản thành công!" });
+    } catch (err) {
+        console.error("Lỗi cập nhật trạng thái khách hàng:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
