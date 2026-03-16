@@ -61,11 +61,17 @@ export default function Navbar() {
                     {user ? (
                         <div className="flex items-center gap-4">
 
-                            {/* User name */}
-                            <div className="flex items-center gap-2 text-sm font-bold text-white bg-white/5 px-4 py-2 rounded-full border border-white/10">
-                                <User size={16} className="text-cyan-400" />
-                                <span>Chào, {user.HoTen}</span>
-                            </div>
+                            {/* Liên kết đến trang Profile của User */}
+                            <Link href="/profile" className="group">
+                                <div className="flex items-center gap-2 text-sm font-bold text-white bg-white/5 px-4 py-2 rounded-full border border-white/10 transition-all hover:bg-white/10 hover:border-cyan-400/50 cursor-pointer">
+                                    {/* Icon User sẽ phóng to nhẹ khi di chuột vào cụm tên */}
+                                    <User size={16} className="text-cyan-400 group-hover:scale-110 transition-transform" />
+
+                                    <span className="group-hover:text-cyan-400 transition-colors">
+                                        Chào, {user.HoTen}
+                                    </span>
+                                </div>
+                            </Link>
 
                             {/* Logout */}
                             <button
