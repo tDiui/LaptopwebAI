@@ -38,5 +38,30 @@ router.post('/login', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// 1. Lấy thông tin chi tiết user
+router.get('/profile/:id', async (req, res) => {
+    try {
+        await sql.connect(dbConfig);
+        const result = await sql.query(`SELECT MaTK, HoTen, Email, SoDienThoai, DiaChi, VaiTro, NgayTao FROM TaiKhoan WHERE MaTK = ${req.params.id}`);
+        res.json(result.recordset[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
+// 2. Cập nhật thông tin
+router.put('/profile/update', async (req, res) => {
+    const { maTK, hoTen, soDienThoai, diaChi } = req.body;
+    try {
+        await sql.connect(dbConfig);
+        await sql.query(`
+            UPDATE TaiKhoan 
+            SET HoTen = N'${hoTen}', SoDienThoai = '${soDienThoai}', DiaChi = N'${diaChi}'
+            WHERE MaTK = ${maTK}
+        `);
+        res.json({ success: true, message: "Cập nhật thành công!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 module.exports = router;
