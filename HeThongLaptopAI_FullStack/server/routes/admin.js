@@ -16,46 +16,40 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname))
 });
 const upload = multer({ storage: storage });
 
-// --- CÁC API DÀNH RIÊNG CHO ADMIN ---
+// ==========================================
+// QUẢN LÝ SẢN PHẨM (SanPham)
+// ==========================================
 
-// 1. Lấy thông số Dashboard
-router.get('/stats', async (req, res) => {
-    try {
-        let pool = await sql.connect(dbConfig);
-        const stats = await pool.request().query(`
-            SELECT 
-                (SELECT ISNULL(SUM(TongTien), 0) FROM DonHang WHERE IsSpam = 0) as TotalRevenue,
-                (SELECT COUNT(*) FROM DonHang) as TotalOrders,
-                (SELECT COUNT(*) FROM TaiKhoan WHERE VaiTro = 'Customer') as TotalCustomers,
-                (SELECT COUNT(*) FROM DonHang WHERE IsSpam = 1) as SpamBlocked
-        `);
-        // Không cần "FROM SanPham" ở cuối câu truy vấn
-        res.json(stats.recordset[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 2. Lấy danh sách sản phẩm
+// 1. Lấy danh sách sản phẩm
 router.get('/products', async (req, res) => {
     try {
         let pool = await sql.connect(dbConfig);
-        let result = await pool.request().query("SELECT * FROM SanPham ORDER BY NgayTao DESC");
+        let result = await pool.request().query(`
+            SELECT sp.*, h.TenHang 
+            FROM SanPham sp
+            LEFT JOIN Hang h ON sp.MaHang = h.MaHang
+            ORDER BY sp.NgayTao DESC
+        `);
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 3. Thêm sản phẩm kèm Upload ảnh
-router.post('/products', upload.single('HinhAnh'), async (req, res) => {
-    // Multer sẽ đưa dữ liệu chữ vào req.body và file vào req.file
+// 2. Thêm sản phẩm mới (Hỗ trợ 3 ảnh lưu dạng JSON)
+router.post('/products', upload.array('HinhAnh', 3), async (req, res) => {
     const p = req.body;
-    const hinhAnhUrl = req.file ? `http://localhost:5000/uploads/${req.file.filename}` : null;
+
+    // Xử lý mảng ảnh
+    let hinhAnhUrls = [];
+    if (req.files && req.files.length > 0) {
+        hinhAnhUrls = req.files.map(file => `http://localhost:5000/uploads/${file.filename}`);
+    }
+    const hinhAnhString = hinhAnhUrls.length > 0 ? JSON.stringify(hinhAnhUrls) : null;
 
     try {
         let pool = await sql.connect(dbConfig);
@@ -66,62 +60,39 @@ router.post('/products', upload.single('HinhAnh'), async (req, res) => {
             .input('CPU', sql.NVarChar, p.CPU)
             .input('RAM', sql.NVarChar, p.RAM)
             .input('VGA', sql.NVarChar, p.VGA)
-            .input('HinhAnh', sql.NVarChar, hinhAnhUrl)
-            .query(`INSERT INTO SanPham (TenSP, GiaBan, SoLuongTon, CPU, RAM, VGA, HinhAnh, TrangThai) 
-                    VALUES (@TenSP, @GiaBan, @SoLuongTon, @CPU, @RAM, @VGA, @HinhAnh, 1)`);
+            .input('ManHinh', sql.NVarChar, p.ManHinh)
+            .input('O_Cung', sql.NVarChar, p.O_Cung)
+            .input('TrongLuong', sql.Float, p.TrongLuong ? parseFloat(p.TrongLuong) : 0)
+            .input('MoTa', sql.NVarChar, p.MoTa)
+            .input('HinhAnh', sql.NVarChar, hinhAnhString)
+            .query(`INSERT INTO SanPham (TenSP, GiaBan, SoLuongTon, CPU, RAM, VGA, ManHinh, O_Cung, TrongLuong, MoTa, HinhAnh, TrangThai) 
+                    VALUES (@TenSP, @GiaBan, @SoLuongTon, @CPU, @RAM, @VGA, @ManHinh, @O_Cung, @TrongLuong, @MoTa, @HinhAnh, 1)`);
         res.json({ message: "Thêm thành công!" });
     } catch (err) {
-        console.error("Lỗi Server:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-module.exports = router;
-
-// 4. Xóa (Ẩn) sản phẩm - Soft Delete
-router.delete('/products/:id', async (req, res) => {
-    const maSP = req.params.id;
-
-    try {
-        let pool = await sql.connect(dbConfig);
-
-        // Lệnh DELETE để xóa hẳn khỏi database
-        const result = await pool.request()
-            .input('MaSP', sql.Int, maSP)
-            .query("DELETE FROM SanPham WHERE MaSP = @MaSP");
-
-        // rowsAffected[0] trả về số dòng bị ảnh hưởng (số dòng bị xóa)
-        if (result.rowsAffected[0] > 0) {
-            res.json({ message: "Đã xóa vĩnh viễn sản phẩm khỏi cơ sở dữ liệu!" });
-        } else {
-            res.status(404).json({ error: "Không tìm thấy sản phẩm này để xóa." });
-        }
-    } catch (err) {
-        console.error("Lỗi xóa sản phẩm:", err.message);
-        res.status(500).json({ error: "Lỗi hệ thống khi xóa sản phẩm", details: err.message });
-    }
-});
-
-// 5. Cập nhật sản phẩm
-router.put('/products/:id', upload.single('HinhAnh'), async (req, res) => {
+// 3. Cập nhật sản phẩm
+router.put('/products/:id', upload.array('HinhAnh', 3), async (req, res) => {
     const maSP = req.params.id;
     const p = req.body;
-    const hinhAnhUrl = req.file ? `http://localhost:5000/uploads/${req.file.filename}` : null;
+
+    let hinhAnhUrls = [];
+    if (req.files && req.files.length > 0) {
+        hinhAnhUrls = req.files.map(file => `http://localhost:5000/uploads/${file.filename}`);
+    }
+    const hinhAnhString = hinhAnhUrls.length > 0 ? JSON.stringify(hinhAnhUrls) : null;
 
     try {
         let pool = await sql.connect(dbConfig);
-
-        // Tạo câu lệnh SQL động (có hoặc không có cập nhật ảnh)
         let query = `
             UPDATE SanPham 
             SET TenSP = @TenSP, GiaBan = @GiaBan, SoLuongTon = @SoLuongTon, 
-                CPU = @CPU, RAM = @RAM, VGA = @VGA
+                CPU = @CPU, RAM = @RAM, VGA = @VGA, ManHinh = @ManHinh, 
+                O_Cung = @O_Cung, TrongLuong = @TrongLuong, MoTa = @MoTa
         `;
-
-        if (hinhAnhUrl) {
-            query += `, HinhAnh = @HinhAnh`;
-        }
-
+        if (hinhAnhString) query += `, HinhAnh = @HinhAnh`;
         query += ` WHERE MaSP = @MaSP`;
 
         const request = pool.request()
@@ -131,16 +102,31 @@ router.put('/products/:id', upload.single('HinhAnh'), async (req, res) => {
             .input('SoLuongTon', sql.Int, p.SoLuongTon)
             .input('CPU', sql.NVarChar, p.CPU)
             .input('RAM', sql.NVarChar, p.RAM)
-            .input('VGA', sql.NVarChar, p.VGA);
+            .input('VGA', sql.NVarChar, p.VGA)
+            .input('ManHinh', sql.NVarChar, p.ManHinh)
+            .input('O_Cung', sql.NVarChar, p.O_Cung)
+            .input('TrongLuong', sql.Float, p.TrongLuong ? parseFloat(p.TrongLuong) : 0)
+            .input('MoTa', sql.NVarChar, p.MoTa);
 
-        if (hinhAnhUrl) {
-            request.input('HinhAnh', sql.NVarChar, hinhAnhUrl);
-        }
+        if (hinhAnhString) request.input('HinhAnh', sql.NVarChar, hinhAnhString);
 
         await request.query(query);
         res.json({ message: "Cập nhật sản phẩm thành công!" });
     } catch (err) {
-        console.error("Lỗi cập nhật sản phẩm:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Xóa sản phẩm (Xóa vĩnh viễn)
+router.delete('/products/:id', async (req, res) => {
+    const maSP = req.params.id;
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('MaSP', sql.Int, maSP)
+            .query("DELETE FROM SanPham WHERE MaSP = @MaSP");
+        res.json({ message: "Đã xóa sản phẩm khỏi Database!" });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
@@ -148,39 +134,26 @@ router.put('/products/:id', upload.single('HinhAnh'), async (req, res) => {
 // ==========================================
 // QUẢN LÝ KHÁCH HÀNG (TaiKhoan)
 // ==========================================
-
-// 6. Lấy danh sách khách hàng
 router.get('/customers', async (req, res) => {
     try {
         let pool = await sql.connect(dbConfig);
-        // Chỉ lấy những tài khoản có vai trò là Customer, không lấy mật khẩu
-        let result = await pool.request().query(`
-            SELECT MaTK, HoTen, Email, SoDienThoai, DiaChi, NgayTao, TrangThai 
-            FROM TaiKhoan 
-            WHERE VaiTro = 'Customer' 
-            ORDER BY NgayTao DESC
-        `);
+        let result = await pool.request().query(`SELECT MaTK, HoTen, Email, SoDienThoai, DiaChi, NgayTao, TrangThai FROM TaiKhoan WHERE VaiTro = 'Customer' ORDER BY NgayTao DESC`);
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 7. Khóa / Mở khóa tài khoản
 router.put('/customers/:id/status', async (req, res) => {
     const maTK = req.params.id;
-    const { trangThaiMoi } = req.body; // Gửi 1 (Mở khóa) hoặc 0 (Khóa) từ Frontend
-
+    const { trangThaiMoi } = req.body;
     try {
         let pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('MaTK', sql.Int, maTK)
-            .input('TrangThai', sql.Bit, trangThaiMoi)
-            .query("UPDATE TaiKhoan SET TrangThai = @TrangThai WHERE MaTK = @MaTK");
-
-        res.json({ message: "Cập nhật trạng thái tài khoản thành công!" });
+        await pool.request().input('MaTK', sql.Int, maTK).input('TrangThai', sql.Bit, trangThaiMoi).query("UPDATE TaiKhoan SET TrangThai = @TrangThai WHERE MaTK = @MaTK");
+        res.json({ message: "Cập nhật trạng thái thành công!" });
     } catch (err) {
-        console.error("Lỗi cập nhật trạng thái khách hàng:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
+
+module.exports = router;

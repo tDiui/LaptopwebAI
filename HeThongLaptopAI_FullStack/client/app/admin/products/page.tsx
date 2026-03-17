@@ -1,188 +1,273 @@
 ﻿"use client";
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Upload, Image as ImageIcon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2, X, Upload, Search, ChevronDown, Eye } from 'lucide-react';
 
 export default function ProductsPage() {
-    const [products, setProducts] = useState([]);
+    const [products, setProducts] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [file, setFile] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [editingId, setEditingId] = useState<number | null>(null);
+
+    // State form và mảng file ảnh
+    const [files, setFiles] = useState<File[]>([]);
+    const [previewUrls, setPreviewUrls] = useState<string[]>([]);
     const [formData, setFormData] = useState({
-        TenSP: '', GiaBan: '', SoLuongTon: '', CPU: '', RAM: '', VGA: ''
+        TenSP: '', GiaBan: '', SoLuongTon: '', CPU: '', RAM: '', VGA: '', ManHinh: '', O_Cung: '', TrongLuong: '', MoTa: ''
     });
 
-    const fetchProducts = async () => {
-        try {
-            const res = await fetch('http://localhost:5000/api/admin/products');
-            const data = await res.json();
-            setProducts(data);
-        } catch (err) {
-            console.error("❌ Lỗi load sản phẩm:", err);
-        }
+    const fetchProducts = () => {
+        fetch('http://localhost:5000/api/admin/products')
+            .then(res => res.json())
+            .then(data => setProducts(data));
     };
 
     useEffect(() => { fetchProducts(); }, []);
 
-    // Xử lý khi chọn ảnh
+    // Xử lý khi chọn TỐI ĐA 3 FILE
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            setFile(selectedFile);
-            setPreviewUrl(URL.createObjectURL(selectedFile)); // Tạo link xem trước tạm thời
+        if (e.target.files) {
+            const selectedFiles = Array.from(e.target.files).slice(0, 3);
+            setFiles(selectedFiles);
+            const urls = selectedFiles.map(file => URL.createObjectURL(file));
+            setPreviewUrls(urls);
         }
     };
 
     const handleOpenModal = () => {
         setIsModalOpen(true);
-        setFile(null);
-        setPreviewUrl(null);
+        setEditingId(null);
+        setFiles([]);
+        setPreviewUrls([]);
+        setFormData({ TenSP: '', GiaBan: '', SoLuongTon: '', CPU: '', RAM: '', VGA: '', ManHinh: '', O_Cung: '', TrongLuong: '', MoTa: '' });
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleEditClick = (product: any) => {
+        setEditingId(product.MaSP);
+        setFormData({
+            TenSP: product.TenSP || '', GiaBan: product.GiaBan || '', SoLuongTon: product.SoLuongTon || '',
+            CPU: product.CPU || '', RAM: product.RAM || '', VGA: product.VGA || '',
+            ManHinh: product.ManHinh || '', O_Cung: product.O_Cung || '', TrongLuong: product.TrongLuong || '', MoTa: product.MoTa || ''
+        });
 
-        // SỬ DỤNG FORMDATA ĐỂ GỬI FILE
-        const data = new FormData();
-        data.append('TenSP', formData.TenSP);
-        data.append('GiaBan', formData.GiaBan);
-        data.append('SoLuongTon', formData.SoLuongTon);
-        data.append('CPU', formData.CPU);
-        data.append('RAM', formData.RAM);
-        data.append('VGA', formData.VGA);
-        if (file) {
-            data.append('HinhAnh', file);
+        // Parse chuỗi JSON ảnh từ DB
+        try {
+            if (product.HinhAnh) {
+                const parsedUrls = JSON.parse(product.HinhAnh);
+                setPreviewUrls(Array.isArray(parsedUrls) ? parsedUrls : [product.HinhAnh]);
+            } else {
+                setPreviewUrls([]);
+            }
+        } catch {
+            setPreviewUrls(product.HinhAnh ? [product.HinhAnh] : []);
         }
 
-        try {
-            const res = await fetch('http://localhost:5000/api/admin/products', {
-                method: 'POST',
-                // Lưu ý: Không để Content-Type header khi dùng FormData
-                body: data
-            });
+        setFiles([]);
+        setIsModalOpen(true);
+    };
 
-            if (res.ok) {
-                alert("Thêm sản phẩm thành công!");
-                setIsModalOpen(false);
-                fetchProducts();
-            } else {
-                const errorData = await res.json();
-                alert("Lỗi: " + errorData.error);
-            }
+    const handleDelete = async (id: number) => {
+        if (!window.confirm("Cảnh báo: Hành động này sẽ xóa vĩnh viễn sản phẩm khỏi Database. Tiếp tục?")) return;
+        try {
+            const res = await fetch(`http://localhost:5000/api/admin/products/${id}`, { method: 'DELETE' });
+            if (res.ok) fetchProducts();
         } catch (err) {
             alert("Lỗi kết nối Server!");
         }
     };
 
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const data = new FormData();
+        Object.entries(formData).forEach(([key, value]) => data.append(key, value.toString()));
+
+        // Đính kèm toàn bộ file vào FormData
+        files.forEach(file => data.append('HinhAnh', file));
+
+        const url = editingId ? `http://localhost:5000/api/admin/products/${editingId}` : 'http://localhost:5000/api/admin/products';
+        const method = editingId ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, { method: method, body: data });
+            if (res.ok) {
+                setIsModalOpen(false);
+                fetchProducts();
+            }
+        } catch (err) {
+            console.error("Lỗi khi lưu:", err);
+        }
+    };
+
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-end">
+            {/* Header */}
+            <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-black text-white tracking-tight">Quản lý Sản phẩm</h1>
-                    <p className="text-slate-500 text-sm">Cấu hình và kho hàng</p>
+                    <h1 className="text-2xl font-bold text-white tracking-wide">Quản lý sản phẩm</h1>
+                    <p className="text-slate-400 text-sm mt-1">Danh sách tất cả laptop trong hệ thống</p>
                 </div>
-                <button
-                    onClick={handleOpenModal}
-                    className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all active:scale-95"
-                >
-                    <Plus size={20} /> Thêm máy mới
+                <button onClick={handleOpenModal} className="bg-cyan-500 hover:bg-cyan-400 text-slate-900 px-5 py-2.5 rounded-full font-bold flex items-center gap-2 transition-colors">
+                    <Plus size={18} /> Thêm sản phẩm
                 </button>
             </div>
 
-            {/* BẢNG DANH SÁCH */}
-            <div className="bg-slate-900/40 border border-white/10 rounded-[2rem] overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-white/5 text-slate-500 text-[10px] uppercase font-bold tracking-widest">
+            {/* Main Content Card */}
+            <div className="bg-[#151a25] border border-white/5 rounded-2xl overflow-hidden">
+                {/* Thanh tìm kiếm và Lọc */}
+                <div className="p-6 border-b border-white/5 flex gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                        <input type="text" placeholder="Tìm kiếm theo tên hoặc hãng..." className="w-full bg-[#1e2330] border border-white/5 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                    </div>
+                    <div className="relative">
+                        <select className="appearance-none bg-[#1e2330] border border-white/5 rounded-xl pl-4 pr-10 py-2.5 text-sm text-white outline-none cursor-pointer focus:border-cyan-500/50">
+                            <option>Tất cả trạng thái</option>
+                            <option>Còn hàng</option>
+                            <option>Hết hàng</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={16} />
+                    </div>
+                </div>
+
+                {/* Bảng dữ liệu */}
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-[#1e2330]/50 text-slate-400 text-sm border-b border-white/5">
                         <tr>
-                            <th className="px-6 py-4">Ảnh</th>
-                            <th className="px-6 py-4">Sản phẩm</th>
-                            <th className="px-6 py-4">Giá bán</th>
-                            <th className="px-6 py-4 text-right">Thao tác</th>
+                            <th className="px-6 py-4 font-medium">Sản phẩm</th>
+                            <th className="px-6 py-4 font-medium">CPU</th>
+                            <th className="px-6 py-4 font-medium">GPU</th>
+                            <th className="px-6 py-4 font-medium">AI Score</th>
+                            <th className="px-6 py-4 font-medium">Giá</th>
+                            <th className="px-6 py-4 font-medium">Tồn kho</th>
+                            <th className="px-6 py-4 font-medium text-center">Hành động</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
-                        {products.map((p: any) => (
-                            <tr key={p.MaSP} className="hover:bg-white/5 transition-colors">
-                                <td className="px-6 py-4">
-                                    <div className="w-12 h-12 rounded-lg bg-white/5 overflow-hidden border border-white/10">
-                                        {p.HinhAnh ? (
-                                            <img src={p.HinhAnh} alt="" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-600"><ImageIcon size={18} /></div>
-                                        )}
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="font-bold text-white">{p.TenSP}</div>
-                                    <div className="text-xs text-slate-500">{p.CPU} | {p.RAM}</div>
-                                </td>
-                                <td className="px-6 py-4 text-cyan-400 font-bold">{Number(p.GiaBan).toLocaleString()}đ</td>
-                                <td className="px-6 py-4 text-right space-x-2">
-                                    <button className="p-2 hover:bg-white/10 rounded-lg"><Edit2 size={16} /></button>
-                                    <button className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg"><Trash2 size={16} /></button>
-                                </td>
-                            </tr>
-                        ))}
+                    <tbody className="divide-y divide-white/5 text-sm">
+                        {products.map((p: any) => {
+                            const isOutOfStock = p.SoLuongTon <= 0;
+                            const mockAiScore = 90 + (p.MaSP % 10);
+
+                            return (
+                                <tr key={p.MaSP} className="hover:bg-white/[0.02] transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <div className="font-bold text-white">{p.TenSP}</div>
+                                        <div className="text-xs text-slate-500 mt-0.5">{p.TenHang || 'Chưa phân loại'}</div>
+                                    </td>
+                                    <td className="px-6 py-4 text-slate-300">{p.CPU}</td>
+                                    <td className="px-6 py-4 text-slate-300">{p.VGA}</td>
+                                    <td className="px-6 py-4">
+                                        <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-xs font-medium">
+                                            {mockAiScore}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 font-bold text-white">{Number(p.GiaBan).toLocaleString('vi-VN')}đ</td>
+                                    <td className="px-6 py-4 text-slate-300">{p.SoLuongTon}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <button className="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded-md transition-colors"><Eye size={16} /></button>
+                                            <button onClick={() => handleEditClick(p)} className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded-md transition-colors"><Edit2 size={16} /></button>
+                                            <button onClick={() => handleDelete(p.MaSP)} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-md transition-colors"><Trash2 size={16} /></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
 
-            {/* MODAL THÊM SẢN PHẨM */}
+            {/* --- MODAL FORM --- */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <div className="bg-[#0f172a] border border-white/10 w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-white">Thêm Laptop mới</h2>
-                            <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white"><X /></button>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                    <div className="bg-[#151a25] border border-white/10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#1e2330]/50 sticky top-0 z-10">
+                            <h2 className="text-xl font-bold text-white">{editingId ? "Chỉnh sửa sản phẩm" : "Thêm Laptop Mới"}</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white bg-white/5 p-2 rounded-full"><X size={18} /></button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            {/* Khu vực Upload Ảnh */}
-                            <div className="flex flex-col items-center justify-center border-2 border-dashed border-white/10 rounded-2xl p-6 bg-white/5 hover:bg-white/10 transition-all relative">
-                                {previewUrl ? (
-                                    <div className="relative w-full aspect-video rounded-xl overflow-hidden">
-                                        <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />
-                                        <button
-                                            type="button"
-                                            onClick={() => { setFile(null); setPreviewUrl(null); }}
-                                            className="absolute top-2 right-2 p-2 bg-red-500 rounded-full text-white shadow-lg"
-                                        >
-                                            <X size={16} />
-                                        </button>
+                        <form onSubmit={handleSubmit} className="p-6 grid grid-cols-2 gap-6">
+
+                            {/* KHU VỰC UPLOAD 3 ẢNH */}
+                            <div className="col-span-2 border-2 border-dashed border-white/10 rounded-xl p-6 bg-[#1e2330] hover:border-cyan-500/50 transition-colors">
+                                {previewUrls.length > 0 ? (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-3 gap-4">
+                                            {previewUrls.map((url, idx) => (
+                                                <div key={idx} className="relative rounded-lg overflow-hidden bg-black/50 aspect-video flex items-center justify-center">
+                                                    <img src={url} className="w-full h-full object-cover" alt={`Preview ${idx}`} />
+                                                    {idx === 0 && <span className="absolute top-2 left-2 bg-cyan-500 text-slate-900 text-[10px] font-bold px-2 py-1 rounded">Ảnh chính</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex justify-center">
+                                            <button type="button" onClick={() => { setFiles([]); setPreviewUrls([]); }} className="text-sm bg-red-500/10 text-red-400 px-4 py-2 rounded-lg hover:bg-red-500/20">
+                                                Xóa và chọn lại
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
-                                    <label className="flex flex-col items-center cursor-pointer py-4">
-                                        <div className="p-4 bg-cyan-500/10 rounded-full text-cyan-400 mb-2">
-                                            <Upload size={24} />
-                                        </div>
-                                        <span className="text-white font-bold">Chọn ảnh sản phẩm</span>
-                                        <span className="text-xs text-slate-500 mt-1">Hỗ trợ JPG, PNG, WEBP</span>
-                                        <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                                    <label className="flex flex-col items-center cursor-pointer w-full py-6">
+                                        <div className="p-3 bg-cyan-500/10 text-cyan-400 rounded-full mb-3"><Upload size={20} /></div>
+                                        <span className="text-white font-medium text-sm">Nhấn để tải lên tối đa 3 ảnh</span>
+                                        <span className="text-slate-500 text-xs mt-1">Hỗ trợ JPG, PNG, WEBP</span>
+                                        <input type="file" multiple className="hidden" accept="image/*" onChange={handleFileChange} />
                                     </label>
                                 )}
                             </div>
 
-                            <div className="space-y-4">
-                                <input required placeholder="Tên máy" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-cyan-500"
-                                    onChange={e => setFormData({ ...formData, TenSP: e.target.value })} />
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input required type="number" placeholder="Giá bán (VNĐ)" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none"
-                                        onChange={e => setFormData({ ...formData, GiaBan: e.target.value })} />
-                                    <input required type="number" placeholder="Số lượng tồn" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none"
-                                        onChange={e => setFormData({ ...formData, SoLuongTon: e.target.value })} />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input placeholder="Cấu hình CPU" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none"
-                                        onChange={e => setFormData({ ...formData, CPU: e.target.value })} />
-                                    <input placeholder="Dung lượng RAM" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none"
-                                        onChange={e => setFormData({ ...formData, RAM: e.target.value })} />
-                                </div>
+                            <div className="col-span-2">
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">TÊN SẢN PHẨM *</label>
+                                <input required type="text" value={formData.TenSP} onChange={e => setFormData({ ...formData, TenSP: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
                             </div>
 
-                            <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-4 rounded-2xl mt-4 shadow-lg shadow-cyan-500/20 uppercase tracking-widest">
-                                Xác nhận thêm sản phẩm
-                            </button>
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">GIÁ BÁN (VNĐ) *</label>
+                                <input required type="number" value={formData.GiaBan} onChange={e => setFormData({ ...formData, GiaBan: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">SỐ LƯỢNG TỒN *</label>
+                                <input required type="number" value={formData.SoLuongTon} onChange={e => setFormData({ ...formData, SoLuongTon: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">CPU</label>
+                                <input type="text" value={formData.CPU} onChange={e => setFormData({ ...formData, CPU: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">GPU (VGA)</label>
+                                <input type="text" value={formData.VGA} onChange={e => setFormData({ ...formData, VGA: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">RAM</label>
+                                <input type="text" value={formData.RAM} onChange={e => setFormData({ ...formData, RAM: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">Ổ CỨNG</label>
+                                <input type="text" value={formData.O_Cung} onChange={e => setFormData({ ...formData, O_Cung: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">MÀN HÌNH</label>
+                                <input type="text" value={formData.ManHinh} onChange={e => setFormData({ ...formData, ManHinh: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">TRỌNG LƯỢNG (KG)</label>
+                                <input type="number" step="0.01" value={formData.TrongLuong} onChange={e => setFormData({ ...formData, TrongLuong: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div className="col-span-2">
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">MÔ TẢ SẢN PHẨM</label>
+                                <textarea rows={4} value={formData.MoTa} onChange={e => setFormData({ ...formData, MoTa: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500 resize-none"></textarea>
+                            </div>
+
+                            <div className="col-span-2 pt-2">
+                                <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold py-3 rounded-lg transition-colors">
+                                    {editingId ? "LƯU THAY ĐỔI" : "THÊM SẢN PHẨM VÀO KHO"}
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>

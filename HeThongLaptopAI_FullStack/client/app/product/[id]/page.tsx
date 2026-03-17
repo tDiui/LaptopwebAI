@@ -12,7 +12,7 @@ import Link from 'next/link';
 export default function ProductDetail() {
     const { id } = useParams();
     const [item, setItem] = useState<any>(null);
-    const [selectedImage, setSelectedImage] = useState(0); // State cho gallery ảnh
+    const [selectedImage, setSelectedImage] = useState(0);
     const [activeTab, setActiveTab] = useState('specs');
 
     useEffect(() => {
@@ -31,30 +31,44 @@ export default function ProductDetail() {
         </div>
     );
 
-    // Xử lý mảng ảnh: Nếu DB chỉ có 1 ảnh, ta tạo mảng giả lập để Gallery hoạt động giống code 1
-    const images = [
-        item.HinhAnh ? (item.HinhAnh.startsWith('http') ? item.HinhAnh : `/${item.HinhAnh}`) : "/laptop-demo.png",
-        "/laptop-demo.png", // Ảnh dự phòng 1
-        "/laptop-demo.png", // Ảnh dự phòng 2
-    ];
+    // --- LOGIC XỬ LÝ ẢNH THÔNG MINH ---
+    let images: string[] = [];
+    if (item.HinhAnh) {
+        try {
+            // Thử giải mã chuỗi JSON từ Database
+            const parsed = JSON.parse(item.HinhAnh);
+            images = Array.isArray(parsed) ? parsed : [item.HinhAnh];
+        } catch (e) {
+            // Nếu không phải JSON (VD: link ảnh cũ), cho thẳng vào mảng
+            images = [item.HinhAnh];
+        }
+    }
+
+    // Nếu không có ảnh nào, dùng ảnh demo. Nếu có, chuẩn hóa lại link.
+    if (images.length === 0) {
+        images = ["/laptop-demo.png"];
+    } else {
+        images = images.map(img => img.startsWith('http') || img.startsWith('/') ? img : `/${img}`);
+    }
+    // Đảm bảo selectedImage không vượt quá số lượng ảnh (phòng lỗi khi chuyển sản phẩm)
+    const currentImageIndex = selectedImage >= images.length ? 0 : selectedImage;
 
     return (
         <main className="min-h-screen bg-[#080d17] text-slate-300 selection:bg-cyan-500/30">
             <Navbar />
 
             <div className="container mx-auto px-6 py-10 pb-40 ">
-                {/* Header Back Button */}
                 <Link href="/" className="flex items-center text-slate-500 hover:text-cyan-400 mb-8 transition-all w-fit group">
                     <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
                     <span className="font-bold text-sm uppercase tracking-widest ml-2">Quay lại danh sách</span>
                 </Link>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-                    {/* Cột 1: Gallery (Bê nguyên logic chọn ảnh từ code 1) */}
+                    {/* Cột 1: Gallery */}
                     <div className="lg:sticky lg:top-28 h-fit space-y-6">
                         <div className="relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] overflow-hidden aspect-square flex items-center justify-center p-8 group shadow-2xl">
                             <img
-                                src={images[selectedImage]}
+                                src={images[currentImageIndex]}
                                 alt={item.TenSP}
                                 className="relative z-10 w-full h-full object-contain transition-all duration-700 group-hover:scale-105"
                             />
@@ -63,19 +77,23 @@ export default function ProductDetail() {
                             </div>
                         </div>
 
-                        {/* Thumbnail list từ code 1 */}
-                        <div className="flex gap-4">
-                            {images.map((img, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => setSelectedImage(index)}
-                                    className={`flex-1 aspect-square rounded-2xl overflow-hidden border-2 transition-all ${selectedImage === index ? 'border-cyan-500 ring-4 ring-cyan-500/10' : 'border-white/5 opacity-50 hover:opacity-100'
-                                        }`}
-                                >
-                                    <img src={img} className="w-full h-full object-cover" alt="thumb" />
-                                </button>
-                            ))}
-                        </div>
+                        {/* Thumbnail list (Chỉ hiện nếu có nhiều hơn 1 ảnh) */}
+                        {images.length > 1 && (
+                            <div className="flex gap-4">
+                                {images.map((img, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => setSelectedImage(index)}
+                                        className={`flex-1 aspect-square rounded-2xl overflow-hidden border-2 transition-all ${currentImageIndex === index
+                                                ? 'border-cyan-500 ring-4 ring-cyan-500/10'
+                                                : 'border-white/5 opacity-50 hover:opacity-100 hover:border-white/20'
+                                            }`}
+                                    >
+                                        <img src={img} className="w-full h-full object-cover" alt={`thumb-${index}`} />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Cột 2: Thông tin & Actions */}
@@ -90,7 +108,7 @@ export default function ProductDetail() {
 
                         <h1 className="text-5xl font-black text-white mb-6 tracking-tighter leading-tight uppercase">{item.TenSP}</h1>
 
-                        {/* AI Performance Card (Giao diện chuyên nghiệp hơn) */}
+                        {/* AI Performance Card */}
                         <div className="bg-gradient-to-br from-cyan-950/40 to-slate-900/40 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-6 mb-8 flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="text-cyan-400 bg-cyan-500/10 p-3 rounded-xl shadow-[0_0_15px_rgba(34,211,238,0.2)]">
@@ -110,7 +128,7 @@ export default function ProductDetail() {
                             <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Giá đã bao gồm VAT</p>
                         </div>
 
-                        <p className="text-slate-400 text-sm leading-relaxed mb-8 italic border-l-2 border-cyan-500/30 pl-4">
+                        <p className="text-slate-400 text-sm leading-relaxed mb-8 italic border-l-2 border-cyan-500/30 pl-4 whitespace-pre-line">
                             {item.MoTa || "Siêu phẩm laptop tích hợp chip AI mạnh mẽ, hiệu năng đỉnh cao cho công việc chuyên nghiệp."}
                         </p>
 
@@ -131,18 +149,13 @@ export default function ProductDetail() {
                     </div>
                 </div>
 
-                {/* Tabs Section nâng cấp từ code 1 */}
+                {/* Tabs Section */}
                 <div className="mt-12 rounded-3xl border border-white/10 bg-[#0f172a]/60 backdrop-blur-xl overflow-hidden">
                     <div className="flex border-b border-white/10 text-sm font-semibold">
                         <TabItem active={activeTab === 'specs'} onClick={() => setActiveTab('specs')} icon={<Info size={16} />} label="Thông số kỹ thuật" />
                         <TabItem active={activeTab === 'features'} onClick={() => setActiveTab('features')} icon={<Check size={16} />} label="Tính năng" />
                         <TabItem active={activeTab === 'ai'} onClick={() => setActiveTab('ai')} icon={<Sparkles size={16} />} label="AI Insights" />
-                        <TabItem
-                            active={activeTab === 'reviews'}
-                            onClick={() => setActiveTab('reviews')}
-                            icon={<MessageSquare size={16} />}
-                            label="Đánh giá"
-                        />
+                        <TabItem active={activeTab === 'reviews'} onClick={() => setActiveTab('reviews')} icon={<MessageSquare size={16} />} label="Đánh giá" />
                     </div>
 
                     <div className="p-10">
@@ -152,8 +165,8 @@ export default function ProductDetail() {
                                 <DetailRow icon={<Zap size={16} />} label="Đồ họa (GPU)" value={item.VGA} />
                                 <DetailRow icon={<HardDrive size={16} />} label="Bộ nhớ (RAM)" value={item.RAM} />
                                 <DetailRow icon={<Monitor size={16} />} label="Màn hình" value={item.ManHinh} />
-                                <DetailRow icon={<Battery size={16} />} label="Pin" value="99.9Wh" />
-                                <DetailRow icon={<Weight size={16} />} label="Trọng lượng" value={`${item.TrongLuong || '2.1'}kg`} />
+                                <DetailRow icon={<HardDrive size={16} />} label="Ổ cứng" value={item.O_Cung} />
+                                <DetailRow icon={<Weight size={16} />} label="Trọng lượng" value={item.TrongLuong ? `${item.TrongLuong}kg` : 'Chưa cập nhật'} />
                             </div>
                         )}
                         {activeTab === 'features' && (
@@ -195,7 +208,6 @@ export default function ProductDetail() {
         </main>
     );
 }
-
 
 function QuickSpec({ icon, label, value }: any) {
     return (
@@ -239,7 +251,6 @@ function DetailRow({ icon, label, value }: any) {
             <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                 {icon}
             </div>
-
             <div>
                 <p className="text-base text-slate-400">{label}</p>
                 <p className="text-xl font-semibold text-white">{value || 'Chưa cập nhật'}</p>
