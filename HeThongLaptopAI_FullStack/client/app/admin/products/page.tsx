@@ -1,28 +1,61 @@
 ﻿"use client";
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Upload, Search, ChevronDown, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Upload, Search, ChevronDown } from 'lucide-react'; // Đã xóa import Eye
 
 export default function ProductsPage() {
     const [products, setProducts] = useState<any[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
+
+    // --- STATE CHO TÌM KIẾM VÀ LỌC ---
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('Tất cả trạng thái');
 
     // State form và mảng file ảnh
     const [files, setFiles] = useState<File[]>([]);
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
     const [formData, setFormData] = useState({
-        TenSP: '', GiaBan: '', SoLuongTon: '', CPU: '', RAM: '', VGA: '', ManHinh: '', O_Cung: '', TrongLuong: '', MoTa: ''
+        TenSP: '', MaDM: '', GiaBan: '', SoLuongTon: '', CPU: '', RAM: '', VGA: '', ManHinh: '', O_Cung: '', TrongLuong: '', MoTa: ''
     });
 
     const fetchProducts = () => {
         fetch('http://localhost:5000/api/admin/products')
             .then(res => res.json())
-            .then(data => setProducts(data));
+            .then(data => setProducts(data))
+            .catch(err => console.error(err));
     };
 
-    useEffect(() => { fetchProducts(); }, []);
+    const fetchCategories = () => {
+        fetch('http://localhost:5000/api/admin/categories')
+            .then(res => res.json())
+            .then(data => setCategories(data))
+            .catch(err => console.error(err));
+    };
 
-    // Xử lý khi chọn TỐI ĐA 3 FILE
+    useEffect(() => {
+        fetchProducts();
+        fetchCategories();
+    }, []);
+
+    // --- LOGIC LỌC SẢN PHẨM ---
+    const filteredProducts = products.filter(p => {
+        // Lọc theo Tên sản phẩm hoặc Tên danh mục
+        const matchSearch = (p.TenSP || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (p.TenDM || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+        // Lọc theo Tồn kho
+        let matchStatus = true;
+        if (statusFilter === 'Còn hàng') {
+            matchStatus = p.SoLuongTon > 0;
+        } else if (statusFilter === 'Hết hàng') {
+            matchStatus = p.SoLuongTon <= 0;
+        }
+
+        return matchSearch && matchStatus;
+    });
+
+    // Xử lý file ảnh
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const selectedFiles = Array.from(e.target.files).slice(0, 3);
@@ -37,18 +70,19 @@ export default function ProductsPage() {
         setEditingId(null);
         setFiles([]);
         setPreviewUrls([]);
-        setFormData({ TenSP: '', GiaBan: '', SoLuongTon: '', CPU: '', RAM: '', VGA: '', ManHinh: '', O_Cung: '', TrongLuong: '', MoTa: '' });
+        setFormData({ TenSP: '', MaDM: '', GiaBan: '', SoLuongTon: '', CPU: '', RAM: '', VGA: '', ManHinh: '', O_Cung: '', TrongLuong: '', MoTa: '' });
     };
 
     const handleEditClick = (product: any) => {
         setEditingId(product.MaSP);
         setFormData({
-            TenSP: product.TenSP || '', GiaBan: product.GiaBan || '', SoLuongTon: product.SoLuongTon || '',
+            TenSP: product.TenSP || '',
+            MaDM: product.MaDM || '',
+            GiaBan: product.GiaBan || '', SoLuongTon: product.SoLuongTon || '',
             CPU: product.CPU || '', RAM: product.RAM || '', VGA: product.VGA || '',
             ManHinh: product.ManHinh || '', O_Cung: product.O_Cung || '', TrongLuong: product.TrongLuong || '', MoTa: product.MoTa || ''
         });
 
-        // Parse chuỗi JSON ảnh từ DB
         try {
             if (product.HinhAnh) {
                 const parsedUrls = JSON.parse(product.HinhAnh);
@@ -79,7 +113,6 @@ export default function ProductsPage() {
         const data = new FormData();
         Object.entries(formData).forEach(([key, value]) => data.append(key, value.toString()));
 
-        // Đính kèm toàn bộ file vào FormData
         files.forEach(file => data.append('HinhAnh', file));
 
         const url = editingId ? `http://localhost:5000/api/admin/products/${editingId}` : 'http://localhost:5000/api/admin/products';
@@ -115,13 +148,23 @@ export default function ProductsPage() {
                 <div className="p-6 border-b border-white/5 flex gap-4">
                     <div className="relative flex-1">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                        <input type="text" placeholder="Tìm kiếm theo tên hoặc hãng..." className="w-full bg-[#1e2330] border border-white/5 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                        <input
+                            type="text"
+                            placeholder="Tìm kiếm theo tên hoặc danh mục..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-[#1e2330] border border-white/5 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50 transition-colors"
+                        />
                     </div>
                     <div className="relative">
-                        <select className="appearance-none bg-[#1e2330] border border-white/5 rounded-xl pl-4 pr-10 py-2.5 text-sm text-white outline-none cursor-pointer focus:border-cyan-500/50">
-                            <option>Tất cả trạng thái</option>
-                            <option>Còn hàng</option>
-                            <option>Hết hàng</option>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="appearance-none bg-[#1e2330] border border-white/5 rounded-xl pl-4 pr-10 py-2.5 text-sm text-white outline-none cursor-pointer focus:border-cyan-500/50 transition-colors min-w-[160px]"
+                        >
+                            <option value="Tất cả trạng thái">Tất cả trạng thái</option>
+                            <option value="Còn hàng">Còn hàng</option>
+                            <option value="Hết hàng">Hết hàng</option>
                         </select>
                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={16} />
                     </div>
@@ -141,15 +184,14 @@ export default function ProductsPage() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 text-sm">
-                        {products.map((p: any) => {
-                            const isOutOfStock = p.SoLuongTon <= 0;
+                        {filteredProducts.length > 0 ? filteredProducts.map((p: any) => {
                             const mockAiScore = 90 + (p.MaSP % 10);
 
                             return (
                                 <tr key={p.MaSP} className="hover:bg-white/[0.02] transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="font-bold text-white">{p.TenSP}</div>
-                                        <div className="text-xs text-slate-500 mt-0.5">{p.TenHang || 'Chưa phân loại'}</div>
+                                        <div className="text-xs text-cyan-500 mt-0.5 font-semibold">{p.TenDM || p.TenHang || 'Chưa phân loại'}</div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-300">{p.CPU}</td>
                                     <td className="px-6 py-4 text-slate-300">{p.VGA}</td>
@@ -159,17 +201,26 @@ export default function ProductsPage() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 font-bold text-white">{Number(p.GiaBan).toLocaleString('vi-VN')}đ</td>
-                                    <td className="px-6 py-4 text-slate-300">{p.SoLuongTon}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={p.SoLuongTon > 0 ? "text-slate-300" : "text-red-400 font-semibold"}>
+                                            {p.SoLuongTon > 0 ? p.SoLuongTon : 'Hết hàng'}
+                                        </span>
+                                    </td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex items-center justify-center gap-2">
-                                            <button className="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded-md transition-colors"><Eye size={16} /></button>
                                             <button onClick={() => handleEditClick(p)} className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded-md transition-colors"><Edit2 size={16} /></button>
                                             <button onClick={() => handleDelete(p.MaSP)} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-md transition-colors"><Trash2 size={16} /></button>
                                         </div>
                                     </td>
                                 </tr>
                             );
-                        })}
+                        }) : (
+                            <tr>
+                                <td colSpan={7} className="px-6 py-10 text-center text-slate-500">
+                                    Không tìm thấy sản phẩm nào phù hợp.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -213,9 +264,19 @@ export default function ProductsPage() {
                                 )}
                             </div>
 
-                            <div className="col-span-2">
+                            <div className="col-span-2 md:col-span-1">
                                 <label className="text-xs font-semibold text-slate-400 mb-1.5 block">TÊN SẢN PHẨM *</label>
                                 <input required type="text" value={formData.TenSP} onChange={e => setFormData({ ...formData, TenSP: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500" />
+                            </div>
+
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">DANH MỤC *</label>
+                                <select required value={formData.MaDM} onChange={e => setFormData({ ...formData, MaDM: e.target.value })} className="w-full bg-[#1e2330] border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none focus:border-cyan-500 appearance-none cursor-pointer">
+                                    <option value="" disabled className="text-slate-500">-- Chọn danh mục --</option>
+                                    {categories.map((c: any) => (
+                                        <option key={c.MaDM} value={c.MaDM}>{c.TenDM}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div>

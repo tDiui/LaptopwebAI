@@ -24,14 +24,15 @@ const upload = multer({ storage: storage });
 // QUẢN LÝ SẢN PHẨM (SanPham)
 // ==========================================
 
-// 1. Lấy danh sách sản phẩm
+// 1. Lấy danh sách sản phẩm (Bổ sung JOIN với bảng DanhMuc để lấy TenDM)
 router.get('/products', async (req, res) => {
     try {
         let pool = await sql.connect(dbConfig);
         let result = await pool.request().query(`
-            SELECT sp.*, h.TenHang 
+            SELECT sp.*, h.TenHang, d.TenDM 
             FROM SanPham sp
             LEFT JOIN Hang h ON sp.MaHang = h.MaHang
+            LEFT JOIN DanhMuc d ON sp.MaDM = d.MaDM
             ORDER BY sp.NgayTao DESC
         `);
         res.json(result.recordset);
@@ -40,21 +41,17 @@ router.get('/products', async (req, res) => {
     }
 });
 
-// 2. Thêm sản phẩm mới (Hỗ trợ 3 ảnh lưu dạng JSON)
+// 2. Thêm sản phẩm mới (Thêm input MaDM)
 router.post('/products', upload.array('HinhAnh', 3), async (req, res) => {
     const p = req.body;
-
-    // Xử lý mảng ảnh
-    let hinhAnhUrls = [];
-    if (req.files && req.files.length > 0) {
-        hinhAnhUrls = req.files.map(file => `http://localhost:5000/uploads/${file.filename}`);
-    }
+    let hinhAnhUrls = req.files ? req.files.map(file => `http://localhost:5000/uploads/${file.filename}`) : [];
     const hinhAnhString = hinhAnhUrls.length > 0 ? JSON.stringify(hinhAnhUrls) : null;
 
     try {
         let pool = await sql.connect(dbConfig);
         await pool.request()
             .input('TenSP', sql.NVarChar, p.TenSP)
+            .input('MaDM', sql.Int, p.MaDM ? parseInt(p.MaDM) : null) // <-- THÊM DÒNG NÀY
             .input('GiaBan', sql.Decimal, p.GiaBan)
             .input('SoLuongTon', sql.Int, p.SoLuongTon)
             .input('CPU', sql.NVarChar, p.CPU)
@@ -65,30 +62,26 @@ router.post('/products', upload.array('HinhAnh', 3), async (req, res) => {
             .input('TrongLuong', sql.Float, p.TrongLuong ? parseFloat(p.TrongLuong) : 0)
             .input('MoTa', sql.NVarChar, p.MoTa)
             .input('HinhAnh', sql.NVarChar, hinhAnhString)
-            .query(`INSERT INTO SanPham (TenSP, GiaBan, SoLuongTon, CPU, RAM, VGA, ManHinh, O_Cung, TrongLuong, MoTa, HinhAnh, TrangThai) 
-                    VALUES (@TenSP, @GiaBan, @SoLuongTon, @CPU, @RAM, @VGA, @ManHinh, @O_Cung, @TrongLuong, @MoTa, @HinhAnh, 1)`);
+            .query(`INSERT INTO SanPham (TenSP, MaDM, GiaBan, SoLuongTon, CPU, RAM, VGA, ManHinh, O_Cung, TrongLuong, MoTa, HinhAnh, TrangThai) 
+                    VALUES (@TenSP, @MaDM, @GiaBan, @SoLuongTon, @CPU, @RAM, @VGA, @ManHinh, @O_Cung, @TrongLuong, @MoTa, @HinhAnh, 1)`);
         res.json({ message: "Thêm thành công!" });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 3. Cập nhật sản phẩm
+// 3. Cập nhật sản phẩm (Thêm input MaDM)
 router.put('/products/:id', upload.array('HinhAnh', 3), async (req, res) => {
     const maSP = req.params.id;
     const p = req.body;
-
-    let hinhAnhUrls = [];
-    if (req.files && req.files.length > 0) {
-        hinhAnhUrls = req.files.map(file => `http://localhost:5000/uploads/${file.filename}`);
-    }
+    let hinhAnhUrls = req.files ? req.files.map(file => `http://localhost:5000/uploads/${file.filename}`) : [];
     const hinhAnhString = hinhAnhUrls.length > 0 ? JSON.stringify(hinhAnhUrls) : null;
 
     try {
         let pool = await sql.connect(dbConfig);
         let query = `
             UPDATE SanPham 
-            SET TenSP = @TenSP, GiaBan = @GiaBan, SoLuongTon = @SoLuongTon, 
+            SET TenSP = @TenSP, MaDM = @MaDM, GiaBan = @GiaBan, SoLuongTon = @SoLuongTon, 
                 CPU = @CPU, RAM = @RAM, VGA = @VGA, ManHinh = @ManHinh, 
                 O_Cung = @O_Cung, TrongLuong = @TrongLuong, MoTa = @MoTa
         `;
@@ -98,6 +91,7 @@ router.put('/products/:id', upload.array('HinhAnh', 3), async (req, res) => {
         const request = pool.request()
             .input('MaSP', sql.Int, maSP)
             .input('TenSP', sql.NVarChar, p.TenSP)
+            .input('MaDM', sql.Int, p.MaDM ? parseInt(p.MaDM) : null) // <-- THÊM DÒNG NÀY
             .input('GiaBan', sql.Decimal, p.GiaBan)
             .input('SoLuongTon', sql.Int, p.SoLuongTon)
             .input('CPU', sql.NVarChar, p.CPU)
@@ -111,7 +105,7 @@ router.put('/products/:id', upload.array('HinhAnh', 3), async (req, res) => {
         if (hinhAnhString) request.input('HinhAnh', sql.NVarChar, hinhAnhString);
 
         await request.query(query);
-        res.json({ message: "Cập nhật sản phẩm thành công!" });
+        res.json({ message: "Cập nhật thành công!" });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -220,6 +214,82 @@ router.put('/accounts/:id', async (req, res) => {
     } catch (err) {
         if (err.number === 2627) return res.status(400).json({ error: "Email này đã được sử dụng bởi người khác!" });
         res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
+// QUẢN LÝ DANH MỤC (DanhMuc)
+// ==========================================
+
+// 1. Lấy danh sách danh mục (Kèm số lượng sản phẩm bên trong)
+router.get('/categories', async (req, res) => {
+    try {
+        let pool = await sql.connect(dbConfig);
+        let result = await pool.request().query(`
+            SELECT d.*, 
+                   (SELECT COUNT(*) FROM SanPham s WHERE s.MaDM = d.MaDM) as SoSanPham
+            FROM DanhMuc d
+            ORDER BY d.NgayTao DESC
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. Thêm danh mục mới
+router.post('/categories', async (req, res) => {
+    const { TenDM, MoTa, Slug, Icon, ColorClass } = req.body;
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('TenDM', sql.NVarChar, TenDM)
+            .input('MoTa', sql.NVarChar, MoTa)
+            .input('Slug', sql.VarChar, Slug)
+            .input('Icon', sql.VarChar, Icon || 'FolderTree')
+            .input('ColorClass', sql.VarChar, ColorClass || 'cyan')
+            .query(`INSERT INTO DanhMuc (TenDM, MoTa, Slug, Icon, ColorClass, TrangThai) 
+                    VALUES (@TenDM, @MoTa, @Slug, @Icon, @ColorClass, 1)`);
+        res.json({ message: "Thêm danh mục thành công!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Cập nhật trạng thái hoặc thông tin
+router.put('/categories/:id', async (req, res) => {
+    const maDM = req.params.id;
+    const { TenDM, MoTa, Slug, Icon, ColorClass, TrangThai } = req.body;
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('MaDM', sql.Int, maDM)
+            .input('TenDM', sql.NVarChar, TenDM)
+            .input('MoTa', sql.NVarChar, MoTa)
+            .input('Slug', sql.VarChar, Slug)
+            .input('Icon', sql.VarChar, Icon)
+            .input('ColorClass', sql.VarChar, ColorClass)
+            .input('TrangThai', sql.Bit, TrangThai)
+            .query(`UPDATE DanhMuc 
+                    SET TenDM=@TenDM, MoTa=@MoTa, Slug=@Slug, Icon=@Icon, ColorClass=@ColorClass, TrangThai=@TrangThai 
+                    WHERE MaDM=@MaDM`);
+        res.json({ message: "Cập nhật thành công!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Xóa danh mục
+router.delete('/categories/:id', async (req, res) => {
+    const maDM = req.params.id;
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('MaDM', sql.Int, maDM)
+            .query("DELETE FROM DanhMuc WHERE MaDM = @MaDM");
+        res.json({ message: "Đã xóa danh mục!" });
+    } catch (err) {
+        res.status(500).json({ error: "Không thể xóa danh mục đang chứa sản phẩm!" });
     }
 });
 
