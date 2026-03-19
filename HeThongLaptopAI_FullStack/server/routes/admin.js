@@ -293,4 +293,47 @@ router.delete('/categories/:id', async (req, res) => {
     }
 });
 
+// ==========================================
+// THỐNG KÊ DASHBOARD
+// ==========================================
+router.get('/dashboard-stats', async (req, res) => {
+    try {
+        let pool = await sql.connect(dbConfig);
+
+        // 1. Tổng doanh thu (Tính tổng tiền các đơn hàng)
+        let revRes = await pool.request().query("SELECT SUM(TongTien) as TongDoanhThu FROM DonHang");
+        let tongDoanhThu = revRes.recordset[0].TongDoanhThu || 0;
+
+        // 2. Tổng số đơn hàng
+        let ordRes = await pool.request().query("SELECT COUNT(*) as TongDonHang FROM DonHang");
+        let tongDonHang = ordRes.recordset[0].TongDonHang || 0;
+
+        // 3. Tổng số sản phẩm trong kho
+        let prodRes = await pool.request().query("SELECT COUNT(*) as TongSanPham FROM SanPham");
+        let tongSanPham = prodRes.recordset[0].TongSanPham || 0;
+
+        // 4. Tổng số khách hàng
+        let cusRes = await pool.request().query("SELECT COUNT(*) as TongKhachHang FROM TaiKhoan WHERE VaiTro = 'Customer'");
+        let tongKhachHang = cusRes.recordset[0].TongKhachHang || 0;
+
+        // 5. Lấy 5 đơn hàng mới nhất
+        let recentOrders = await pool.request().query(`
+            SELECT TOP 5 d.MaDH, d.NgayDat, d.TongTien, d.TrangThai, t.HoTen, t.Email
+            FROM DonHang d
+            LEFT JOIN TaiKhoan t ON d.MaTK = t.MaTK
+            ORDER BY d.NgayDat DESC
+        `);
+
+        res.json({
+            tongDoanhThu,
+            tongDonHang,
+            tongSanPham,
+            tongKhachHang,
+            donHangMoi: recentOrders.recordset
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

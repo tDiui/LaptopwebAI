@@ -1,107 +1,156 @@
 ﻿"use client";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { DollarSign, ShoppingCart, Users, TrendingUp } from 'lucide-react';
-
-// Dữ liệu giả lập cho biểu đồ
-const data = [
-    { name: 'T1', doanhThu: 45, donHang: 120 },
-    { name: 'T2', doanhThu: 52, donHang: 145 },
-    { name: 'T3', doanhThu: 48, donHang: 130 },
-    { name: 'T4', doanhThu: 61, donHang: 168 },
-    { name: 'T5', doanhThu: 55, donHang: 150 },
-    { name: 'T6', doanhThu: 67, donHang: 185 },
-];
+import { useState, useEffect } from 'react';
+import { DollarSign, ShoppingBag, Laptop, Users, TrendingUp, ArrowUpRight, Activity } from 'lucide-react';
 
 export default function DashboardPage() {
+    const [stats, setStats] = useState({
+        tongDoanhThu: 0,
+        tongDonHang: 0,
+        tongSanPham: 0,
+        tongKhachHang: 0,
+        donHangMoi: []
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch('http://localhost:5000/api/admin/dashboard-stats')
+            .then(res => res.json())
+            .then(data => {
+                setStats(data);
+                setLoading(false);
+            })
+            .catch(err => console.error("Lỗi tải thống kê:", err));
+    }, []);
+
+    if (loading) {
+        return <div className="h-full flex items-center justify-center text-cyan-400 font-bold animate-pulse">Đang tải dữ liệu hệ thống...</div>;
+    }
+
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 relative pb-10">
+            {/* Header */}
             <div>
-                <h1 className="text-3xl font-black text-white tracking-tight">Dashboard</h1>
-                <p className="text-slate-500 text-sm">Tổng quan hoạt động kinh doanh</p>
+                <h1 className="text-2xl font-bold text-white tracking-wide">Tổng quan hệ thống</h1>
+                <p className="text-slate-400 text-sm mt-1">Theo dõi các chỉ số quan trọng của cửa hàng AI Laptop</p>
             </div>
 
-            {/* 4 Thẻ thống kê hàng đầu */}
+            {/* Thẻ Thống Kê (Stats Cards) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="Tổng doanh thu" value="58.7 tỷ" percent="+12.5%" icon={<DollarSign />} color="text-cyan-400" />
-                <StatCard title="Đơn hàng" value="1,245" percent="+8.2%" icon={<ShoppingCart />} color="text-blue-400" />
-                <StatCard title="Khách hàng" value="856" percent="+15.3%" icon={<Users />} color="text-purple-400" />
-                <StatCard title="Tăng trưởng" value="23.1%" percent="+4.1%" icon={<TrendingUp />} color="text-green-400" />
+                <StatCard
+                    title="Tổng doanh thu"
+                    value={`${Number(stats.tongDoanhThu).toLocaleString('vi-VN')}đ`}
+                    icon={<DollarSign size={22} className="text-emerald-400" />}
+                    colorClass="bg-emerald-500/10 border-emerald-500/20"
+                    trend="+12.5%"
+                />
+                <StatCard
+                    title="Tổng đơn hàng"
+                    value={stats.tongDonHang}
+                    icon={<ShoppingBag size={22} className="text-blue-400" />}
+                    colorClass="bg-blue-500/10 border-blue-500/20"
+                    trend="+5.2%"
+                />
+                <StatCard
+                    title="Sản phẩm trong kho"
+                    value={stats.tongSanPham}
+                    icon={<Laptop size={22} className="text-purple-400" />}
+                    colorClass="bg-purple-500/10 border-purple-500/20"
+                />
+                <StatCard
+                    title="Khách hàng"
+                    value={stats.tongKhachHang}
+                    icon={<Users size={22} className="text-cyan-400" />}
+                    colorClass="bg-cyan-500/10 border-cyan-500/20"
+                    trend="+18.1%"
+                />
             </div>
 
-            {/* Khu vực biểu đồ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ChartContainer title="Doanh thu theo tháng">
-                    <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                            <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                            <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #ffffff10', borderRadius: '12px' }} />
-                            <Line type="monotone" dataKey="doanhThu" stroke="#22d3ee" strokeWidth={3} dot={{ r: 4, fill: '#22d3ee' }} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Biểu đồ giả lập (Mock Chart) để làm đẹp UI */}
+                <div className="col-span-2 bg-[#151a25] border border-white/5 rounded-2xl p-6 shadow-lg">
+                    <div className="flex justify-between items-center mb-8">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg"><Activity size={20} /></div>
+                            <h2 className="text-lg font-bold text-white">Lưu lượng truy cập & AI Request</h2>
+                        </div>
+                        <select className="bg-[#1e2330] border border-white/5 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none">
+                            <option>7 ngày qua</option>
+                            <option>Tháng này</option>
+                        </select>
+                    </div>
+                    {/* Vẽ biểu đồ dạng cột đơn giản bằng Tailwind */}
+                    <div className="h-64 flex items-end justify-between gap-2 md:gap-6 pt-4 border-b border-white/5">
+                        {[40, 70, 45, 90, 65, 85, 110].map((height, i) => (
+                            <div key={i} className="w-full flex flex-col justify-end items-center group cursor-pointer">
+                                <div className="text-cyan-400 opacity-0 group-hover:opacity-100 text-[10px] font-bold mb-2 transition-opacity">{height * 12}</div>
+                                <div
+                                    className="w-full bg-gradient-to-t from-cyan-500/20 to-cyan-400/80 rounded-t-md hover:to-cyan-300 transition-all duration-500 relative"
+                                    style={{ height: `${height}%` }}
+                                >
+                                    <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-t-md"></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 mt-4 px-2 font-medium">
+                        <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+                    </div>
+                </div>
 
-                <ChartContainer title="Đơn hàng theo tháng">
-                    <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                            <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                            <Bar dataKey="donHang" fill="#22d3ee" radius={[6, 6, 0, 0]} barSize={40} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-            </div>
+                {/* Đơn hàng gần đây */}
+                <div className="bg-[#151a25] border border-white/5 rounded-2xl p-6 shadow-lg flex flex-col">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-lg font-bold text-white">Đơn hàng mới</h2>
+                        <button className="text-xs text-cyan-400 font-bold hover:underline">Xem tất cả</button>
+                    </div>
 
-            {/* Bảng sản phẩm bán chạy */}
-            <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8">
-                <h2 className="text-xl font-bold text-white mb-6">Sản phẩm bán chạy</h2>
-                <table className="w-full text-left text-sm">
-                    <thead>
-                        <tr className="text-slate-500 border-b border-white/10">
-                            <th className="pb-4 font-medium uppercase tracking-wider text-xs px-4">Sản phẩm</th>
-                            <th className="pb-4 font-medium uppercase tracking-wider text-xs text-right px-4">Số lượng bán</th>
-                            <th className="pb-4 font-medium uppercase tracking-wider text-xs text-right px-4">Doanh thu</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                        <ProductRow name="MacBook Pro 16 inch M3 Max" sales={245} revenue="22.045.000.000đ" />
-                        <ProductRow name="Laptop Gaming AI G5" sales={182} revenue="4.550.000.000đ" />
-                    </tbody>
-                </table>
+                    <div className="flex-1 space-y-4">
+                        {stats.donHangMoi && stats.donHangMoi.length > 0 ? (
+                            stats.donHangMoi.map((order: any, idx: number) => (
+                                <div key={idx} className="flex items-center justify-between p-4 rounded-xl bg-[#1e2330] border border-white/5 hover:border-cyan-500/30 transition-colors">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-sm font-bold text-white">{order.HoTen || 'Khách hàng'}</span>
+                                        <span className="text-xs text-slate-400">{new Date(order.NgayDat).toLocaleDateString('vi-VN')}</span>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1">
+                                        <span className="text-sm font-bold text-cyan-400">+{Number(order.TongTien).toLocaleString('vi-VN')}đ</span>
+                                        <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                            {order.TrangThai || 'Mới'}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-slate-500 text-sm italic">
+                                Chưa có đơn hàng nào.
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );
 }
 
-// Các component phụ hỗ trợ layout
-function StatCard({ title, value, percent, icon, color }: any) {
+// Component Thẻ thống kê
+function StatCard({ title, value, icon, colorClass, trend }: any) {
     return (
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 p-6 rounded-[2rem] relative overflow-hidden group">
-            <div className="flex justify-between items-start mb-4">
-                <div className={`p-3 bg-white/5 rounded-2xl ${color}`}>{icon}</div>
-                <span className="text-green-400 text-xs font-bold">{percent}</span>
+        <div className="bg-[#151a25] border border-white/5 rounded-2xl p-6 hover:bg-white/[0.02] transition-colors relative overflow-hidden group">
+            <div className="absolute -right-6 -top-6 w-24 h-24 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+            <div className="flex justify-between items-start mb-4 relative z-10">
+                <div className={`p-3 rounded-xl border ${colorClass}`}>
+                    {icon}
+                </div>
+                {trend && (
+                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+                        <ArrowUpRight size={14} /> {trend}
+                    </span>
+                )}
             </div>
-            <div className="text-slate-500 text-xs font-bold uppercase mb-1">{title}</div>
-            <div className="text-2xl font-black text-white">{value}</div>
+            <div className="relative z-10">
+                <div className="text-slate-400 text-sm font-medium mb-1">{title}</div>
+                <div className="text-3xl font-black text-white">{value}</div>
+            </div>
         </div>
-    );
-}
-
-function ChartContainer({ title, children }: any) {
-    return (
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 p-8 rounded-[2rem]">
-            <h3 className="text-lg font-bold text-white mb-6">{title}</h3>
-            {children}
-        </div>
-    );
-}
-
-function ProductRow({ name, sales, revenue }: any) {
-    return (
-        <tr className="hover:bg-white/5 transition-colors">
-            <td className="py-4 font-bold text-white px-4">{name}</td>
-            <td className="py-4 text-slate-400 text-right px-4">{sales}</td>
-            <td className="py-4 text-cyan-400 font-bold text-right px-4">{revenue}</td>
-        </tr>
     );
 }
