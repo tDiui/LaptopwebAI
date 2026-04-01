@@ -1,31 +1,95 @@
 ﻿"use client";
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Navbar from '../../components/Navbar';
 import {
     Cpu, Zap, Monitor, HardDrive, ShieldCheck, ChevronLeft,
     Star, ShoppingCart, Heart, Share2, MessageSquare, Info,
-    Battery, Weight, Check, Sparkles
+    Battery, Weight, Check, Sparkles, Minus, Plus, Loader2
 } from 'lucide-react';
-import Navbar from '../../components/Navbar';
-import Link from 'next/link';
 
-export default function ProductDetail() {
-    const { id } = useParams();
-    const [item, setItem] = useState<any>(null);
+type Laptop = {
+    MaSP: number;
+    TenSP: string;
+    GiaBan: number;
+    HinhAnh?: string | string[];
+    CPU?: string;
+    RAM?: string;
+    O_Cung?: string;
+    VGA?: string;
+    ManHinh?: string;
+    TrongLuong?: number;
+    MoTa?: string;
+    SoLuongTon?: number;
+    TrangThai?: boolean;
+};
+
+export default function ProductDetail(): JSX.Element {
+    const { id } = useParams() as { id?: string };
+    const router = useRouter();
+    const [item, setItem] = useState<Laptop | null>(null);
     const [selectedImage, setSelectedImage] = useState(0);
     const [activeTab, setActiveTab] = useState('specs');
 
+    // --- 1. THÊM STATE SỐ LƯỢNG ---
+    const [quantity, setQuantity] = useState(1);
+    const [isAdding, setIsAdding] = useState(false);
+
     useEffect(() => {
+        if (!id) return;
         fetch(`http://localhost:5000/api/laptops/${id}`)
             .then(res => res.json())
-            .then(data => setItem(data))
-            .catch(err => console.error(err));
+            .then((data: Laptop) => setItem(data))
+            .catch(err => {
+                console.error(err);
+                setItem(null);
+            });
     }, [id]);
+
+    // --- 2. LOGIC THÊM VÀO GIỎ HÀNG ---
+    const handleAddToCart = async () => {
+        const storedUser = typeof window !== "undefined" ? localStorage.getItem('user') : null;
+        if (!storedUser) {
+            alert("Bạn cần đăng nhập để mua hàng nhé!");
+            router.push('/login');
+            return;
+        }
+
+        const user = JSON.parse(storedUser);
+        if (!item) return;
+
+        setIsAdding(true);
+
+        try {
+            const res = await fetch(`http://localhost:5000/api/cart/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    maTK: user.MaTK,
+                    maSP: item.MaSP,
+                    soLuong: quantity
+                })
+            });
+
+            if (res.ok) {
+                alert(`🚀 Đã thêm ${quantity} sản phẩm vào giỏ hàng!`);
+            } else {
+                const errorData = await res.json();
+                alert("Lỗi: " + (errorData.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Không kết nối được với Server!");
+        } finally {
+            setIsAdding(false);
+        }
+    };
 
     if (!item) return (
         <div className="min-h-screen bg-[#080d17] flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin text-cyan-400"><Sparkles size={40} /></div>
+                <div className="animate-spin text-cyan-400"><Loader2 size={40} /></div>
                 <p className="text-cyan-400 font-bold italic tracking-widest">🤖 AI ĐANG KHỞI TẠO DỮ LIỆU...</p>
             </div>
         </div>
@@ -35,22 +99,26 @@ export default function ProductDetail() {
     let images: string[] = [];
     if (item.HinhAnh) {
         try {
-            // Thử giải mã chuỗi JSON từ Database
-            const parsed = JSON.parse(item.HinhAnh);
-            images = Array.isArray(parsed) ? parsed : [item.HinhAnh];
-        } catch (e) {
-            // Nếu không phải JSON (VD: link ảnh cũ), cho thẳng vào mảng
-            images = [item.HinhAnh];
+            // HinhAnh có thể là chuỗi JSON hoặc chuỗi đơn
+            if (typeof item.HinhAnh === 'string') {
+                const parsed = JSON.parse(item.HinhAnh);
+                if (Array.isArray(parsed)) images = parsed;
+                else if (typeof parsed === 'string') images = [parsed];
+                else images = [item.HinhAnh];
+            } else if (Array.isArray(item.HinhAnh)) {
+                images = item.HinhAnh;
+            } else {
+                images = [String(item.HinhAnh)];
+            }
+        } catch {
+            // Nếu không phải JSON, dùng trực tiếp
+            images = Array.isArray(item.HinhAnh) ? item.HinhAnh : [String(item.HinhAnh)];
         }
     }
 
-    // Nếu không có ảnh nào, dùng ảnh demo. Nếu có, chuẩn hóa lại link.
-    if (images.length === 0) {
-        images = ["/laptop-demo.png"];
-    } else {
-        images = images.map(img => img.startsWith('http') || img.startsWith('/') ? img : `/${img}`);
-    }
-    // Đảm bảo selectedImage không vượt quá số lượng ảnh (phòng lỗi khi chuyển sản phẩm)
+    if (images.length === 0) images = ["/laptop-demo.png"];
+    images = images.map(img => img.startsWith('http') || img.startsWith('/') ? img : `/${img}`);
+
     const currentImageIndex = selectedImage >= images.length ? 0 : selectedImage;
 
     return (
@@ -77,7 +145,7 @@ export default function ProductDetail() {
                             </div>
                         </div>
 
-                        {/* Thumbnail list (Chỉ hiện nếu có nhiều hơn 1 ảnh) */}
+                        {/* Thumbnail list */}
                         {images.length > 1 && (
                             <div className="flex gap-4">
                                 {images.map((img, index) => (
@@ -85,9 +153,9 @@ export default function ProductDetail() {
                                         key={index}
                                         onClick={() => setSelectedImage(index)}
                                         className={`flex-1 aspect-square rounded-2xl overflow-hidden border-2 transition-all ${currentImageIndex === index
-                                                ? 'border-cyan-500 ring-4 ring-cyan-500/10'
-                                                : 'border-white/5 opacity-50 hover:opacity-100 hover:border-white/20'
-                                            }`}
+                                            ? 'border-cyan-500 ring-4 ring-cyan-500/10'
+                                            : 'border-white/5 opacity-50 hover:opacity-100 hover:border-white/20'
+                                        }`}
                                     >
                                         <img src={img} className="w-full h-full object-cover" alt={`thumb-${index}`} />
                                     </button>
@@ -121,6 +189,42 @@ export default function ProductDetail() {
                             </div>
                         </div>
 
+                        <div className="flex items-center gap-6 mb-8">
+                            <div className="flex items-center bg-slate-900/60 border border-white/10 rounded-2xl p-1">
+                                <button
+                                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                    className="w-12 h-12 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+                                >
+                                    <Minus size={20} />
+                                </button>
+                                <span className="w-12 text-center font-black text-xl text-white">{quantity}</span>
+                                <button
+                                    onClick={() => setQuantity(quantity + 1)}
+                                    className="w-12 h-12 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+                                >
+                                    <Plus size={20} />
+                                </button>
+                            </div>
+                            <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">
+                                {item.SoLuongTon ?? 0} sản phẩm có sẵn
+                            </p>
+                        </div>
+
+                        <div className="flex gap-4 mb-10">
+                            <button
+                                onClick={handleAddToCart}
+                                disabled={isAdding || (item.SoLuongTon ?? 0) <= 0}
+                                className={`flex-1 ${((item.SoLuongTon ?? 0) <= 0) ? 'bg-slate-700' : 'bg-cyan-500 hover:bg-cyan-400'} text-slate-950 py-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all shadow-[0_10px_40px_-10px_rgba(34,211,238,0.4)] active:scale-95 disabled:opacity-50`}
+                            >
+                                {isAdding ? <Loader2 className="animate-spin" size={20} /> : <ShoppingCart size={20} />}
+                                {(item.SoLuongTon ?? 0) <= 0 ? 'HẾT HÀNG' : 'THÊM VÀO GIỎ HÀNG'}
+                            </button>
+
+                            <button className="w-16 h-16 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/5 text-slate-400 hover:text-red-500 transition-all">
+                                <Heart size={20} />
+                            </button>
+                        </div>
+
                         <div className="mb-8">
                             <h2 className="text-5xl font-black text-cyan-400 tracking-tighter mb-1">
                                 {new Intl.NumberFormat('vi-VN').format(item.GiaBan)}đ
@@ -131,13 +235,6 @@ export default function ProductDetail() {
                         <p className="text-slate-400 text-sm leading-relaxed mb-8 italic border-l-2 border-cyan-500/30 pl-4 whitespace-pre-line">
                             {item.MoTa || "Siêu phẩm laptop tích hợp chip AI mạnh mẽ, hiệu năng đỉnh cao cho công việc chuyên nghiệp."}
                         </p>
-
-                        <div className="flex gap-4 mb-10">
-                            <button className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all shadow-[0_10px_40px_-10px_rgba(34,211,238,0.4)] active:scale-95">
-                                <ShoppingCart size={20} /> THÊM VÀO GIỎ HÀNG
-                            </button>
-                            <button className="w-16 h-16 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/5 text-slate-400 hover:text-red-500 transition-all"><Heart size={20} /></button>
-                        </div>
 
                         {/* Quick Specs Grid */}
                         <div className="grid grid-cols-2 gap-3">
@@ -209,19 +306,21 @@ export default function ProductDetail() {
     );
 }
 
-function QuickSpec({ icon, label, value }: any) {
+type QuickSpecProps = { icon: JSX.Element; label: string; value?: string | number | null };
+function QuickSpec({ icon, label, value }: QuickSpecProps): JSX.Element {
     return (
         <div className="bg-slate-900/60 border border-white/5 p-4 rounded-xl flex items-center gap-3 hover:border-cyan-500/30 transition-all group">
             <div className="text-cyan-500/60 bg-cyan-500/5 p-2 rounded-lg group-hover:scale-110 transition-transform">{icon}</div>
             <div className="overflow-hidden">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{label}</p>
-                <p className="text-xs font-bold text-slate-200 truncate">{value || 'N/A'}</p>
+                <p className="text-xs font-bold text-slate-200 truncate">{value ?? 'N/A'}</p>
             </div>
         </div>
     );
 }
 
-function AIStat({ label, score }: any) {
+type AIStatProps = { label: string; score: string | number };
+function AIStat({ label, score }: AIStatProps): JSX.Element {
     return (
         <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
             <div className="text-2xl font-black text-cyan-400 mb-1">{score}</div>
@@ -230,7 +329,8 @@ function AIStat({ label, score }: any) {
     );
 }
 
-function TabItem({ active, onClick, icon, label }: any) {
+type TabItemProps = { active: boolean; onClick: () => void; icon: JSX.Element; label: string };
+function TabItem({ active, onClick, icon, label }: TabItemProps): JSX.Element {
     return (
         <button
             onClick={onClick}
@@ -245,7 +345,8 @@ function TabItem({ active, onClick, icon, label }: any) {
     );
 }
 
-function DetailRow({ icon, label, value }: any) {
+type DetailRowProps = { icon: JSX.Element; label: string; value?: string | number | null };
+function DetailRow({ icon, label, value }: DetailRowProps): JSX.Element {
     return (
         <div className="flex items-start gap-4">
             <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
@@ -253,7 +354,7 @@ function DetailRow({ icon, label, value }: any) {
             </div>
             <div>
                 <p className="text-base text-slate-400">{label}</p>
-                <p className="text-xl font-semibold text-white">{value || 'Chưa cập nhật'}</p>
+                <p className="text-xl font-semibold text-white">{value ?? 'Chưa cập nhật'}</p>
             </div>
         </div>
     );
