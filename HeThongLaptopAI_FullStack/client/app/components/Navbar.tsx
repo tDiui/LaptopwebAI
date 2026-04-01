@@ -54,6 +54,9 @@ export default function Navbar() {
                     <Link href="/benchmark" className="hover:text-cyan-400 transition-colors">
                         Benchmark
                     </Link>
+                    <Link href="/cart" className="hover:text-cyan-400 transition-colors">
+                        Giỏ hàng
+                    </Link>
                 </div>
 
                 {/* User area */}
