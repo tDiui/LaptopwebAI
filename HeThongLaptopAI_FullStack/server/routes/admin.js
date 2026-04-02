@@ -1,9 +1,10 @@
 ﻿const express = require('express');
 const router = express.Router();
-const sql = require('mssql/msnodesqlv8');
+//const sql = require('mssql/msnodesqlv8');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { sql, poolPromise } = require('../config/db');
 
 // Cấu hình Database kết nối
 const dbConfig = {
@@ -331,6 +332,75 @@ router.get('/dashboard-stats', async (req, res) => {
             tongKhachHang,
             donHangMoi: recentOrders.recordset
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
+// QUẢN LÝ ĐƠN HÀNG (CẬP NHẬT AI)
+// ==========================================
+router.get('/orders', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT d.MaDH, d.NgayDat, d.TongTien, d.PhuongThucThanhToan, d.TrangThai, 
+                   d.RiskScore_AI, d.IsSpam, d.DaThanhToan,
+                   t.HoTen, t.Email
+            FROM DonHang d
+            LEFT JOIN TaiKhoan t ON d.MaTK = t.MaTK
+            ORDER BY d.NgayDat DESC
+        `);
+
+        // Trả về mảng rỗng nếu không có dữ liệu để Web không sập
+        res.json(result.recordset || []);
+    } catch (err) {
+        // IN LỖI ĐỎ RA TERMINAL CỦA NODE.JS ĐỂ BRO DỄ THẤY
+        console.error("❌ LỖI API LẤY ĐƠN HÀNG:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+// 1. LẤY CHI TIẾT SẢN PHẨM TRONG ĐƠN HÀNG
+router.get('/orders/:id', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('MaDH', sql.Int, req.params.id)
+            .query(`
+                SELECT c.MaCTDH, c.SoLuong, c.GiaBan, s.TenSP, s.HinhAnh
+                FROM ChiTietDonHang c
+                JOIN SanPham s ON c.MaSP = s.MaSP
+                WHERE c.MaDH = @MaDH
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. CẬP NHẬT TRẠNG THÁI GIAO HÀNG
+router.put('/orders/:id/status', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('MaDH', sql.Int, req.params.id)
+            .input('TrangThai', sql.NVarChar, req.body.trangThai)
+            .query(`UPDATE DonHang SET TrangThai = @TrangThai WHERE MaDH = @MaDH`);
+        res.json({ success: true, message: "Cập nhật trạng thái thành công" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. CẬP NHẬT TRẠNG THÁI THANH TOÁN
+router.put('/orders/:id/payment', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('MaDH', sql.Int, req.params.id)
+            .input('DaThanhToan', sql.Bit, req.body.daThanhToan ? 1 : 0)
+            .query(`UPDATE DonHang SET DaThanhToan = @DaThanhToan WHERE MaDH = @MaDH`);
+        res.json({ success: true, message: "Cập nhật thanh toán thành công" });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
