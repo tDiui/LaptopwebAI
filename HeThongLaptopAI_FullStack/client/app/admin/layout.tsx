@@ -90,6 +90,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         active={pathname === '/admin/analytics'}
                     />
                     <SidebarItem
+                        label="Đơn hàng"
+                        icon={<Package size={20} />}
+                        href="/admin/orders"
+                        active={pathname === '/admin/orders'}
+                    />
+                    <SidebarItem
                         icon={<Settings size={20} />}
                         label="Cài đặt"
                         href="/admin/settings"

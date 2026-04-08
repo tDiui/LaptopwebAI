@@ -15,7 +15,8 @@ export default function CheckoutPage() {
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
-
+    const [showQRModal, setShowQRModal] = useState(false);
+    const [orderId, setOrderId] = useState(null);
     // State cho Form thông tin
     const [formData, setFormData] = useState({
         hoTen: '',
@@ -56,9 +57,7 @@ export default function CheckoutPage() {
     // --- LOGIC XỬ LÝ ĐẶT HÀNG ---
     const handleConfirmOrder = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.diaChi || !formData.soDienThoai) {
-            return alert("Vui lòng nhập đầy đủ địa chỉ và số điện thoại bro ơi!");
-        }
+        if (!formData.diaChi || !formData.soDienThoai) return alert("Nhập đủ thông tin đã bro!");
 
         setIsProcessing(true);
         try {
@@ -69,16 +68,21 @@ export default function CheckoutPage() {
                     maTK: user.MaTK,
                     tongTien: subtotal,
                     phuongThucTT: formData.phuongThucTT,
-                    items: cartItems // Gửi kèm danh sách để Backend lưu ChiTietDonHang
+                    items: cartItems
                 })
             });
 
             const result = await res.json();
             if (result.success) {
-                alert(`🎉 Đặt hàng thành công! Mã đơn của bro là #${result.maDH}`);
-                router.push('/'); // Về trang chủ
-            } else {
-                alert("Lỗi: " + result.error);
+                setOrderId(result.maDH);
+                // Nếu là COD thì về trang chủ luôn
+                if (formData.phuongThucTT === 'Tiền mặt (COD)') {
+                    alert("🎉 Đặt hàng thành công!");
+                    router.push('/');
+                } else {
+                    // Nếu là QR thì hiện Modal
+                    setShowQRModal(true);
+                }
             }
         } catch (err) {
             alert("Lỗi kết nối Server!");
@@ -208,6 +212,62 @@ export default function CheckoutPage() {
                     </div>
                 </div>
             </div>
+            {/* --- MODAL QUÉT MÃ QR --- */}
+            {showQRModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+                    <div className="bg-[#151a25] border border-white/10 w-full max-w-md rounded-[2.5rem] p-8 text-center space-y-6 shadow-2xl animate-in zoom-in duration-300">
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-black text-white uppercase italic italic">Quét mã thanh toán</h2>
+                            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Đơn hàng #{orderId}</p>
+                        </div>
+
+                        {/* Vùng chứa mã QR */}
+                        <div className="bg-white p-4 rounded-3xl inline-block shadow-[0_0_50px_rgba(34,211,238,0.2)]">
+                            {formData.phuongThucTT === 'Chuyển khoản ngân hàng' ? (
+                                <img
+                                    // API VietQR: Ngân hàng (vcb), Số TK (123456), Template (compact), Số tiền, Nội dung
+                                    src={`https://img.vietqr.io/image/vcb-1025542714-compact2.png?amount=${subtotal}&addInfo=THANH TOAN DON HANG ${orderId}`}
+                                    alt="QR Bank" className="w-64 h-64 object-contain"
+                                />
+                            ) : (
+                                <img
+                                    // Thay link này bằng ảnh QR MoMo cá nhân của bro
+                                    src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=0912345678"
+                                    alt="QR MoMo" className="w-64 h-64 object-contain"
+                                />
+                            )}
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 text-left">
+                                <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Số tiền cần thanh toán</p>
+                                <p className="text-xl font-black text-cyan-400">{new Intl.NumberFormat('vi-VN').format(subtotal)}đ</p>
+                            </div>
+
+                            <p className="text-[10px] text-amber-500 font-bold uppercase animate-pulse">
+                                ⚠️ Vui lòng giữ đúng nội dung chuyển khoản để AI xác nhận
+                            </p>
+
+                            <button
+                                onClick={() => {
+                                    alert("Hệ thống đang kiểm tra giao dịch, bro chờ xíu nhé!");
+                                    router.push('/');
+                                }}
+                                className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-4 rounded-xl font-black transition-all"
+                            >
+                                TÔI ĐÃ THANH TOÁN
+                            </button>
+
+                            <button
+                                onClick={() => setShowQRModal(false)}
+                                className="text-slate-500 hover:text-white text-[10px] font-bold uppercase tracking-widest"
+                            >
+                                Để sau
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </main>
     );

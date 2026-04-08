@@ -86,20 +86,31 @@ export default function OrdersPage() {
     // XỬ LÝ TÌM KIẾM & LỌC REAL-TIME
     const filteredOrders = orders.filter(o => {
         const searchLower = searchTerm.toLowerCase();
-
-        // Tạo mã đơn hàng ảo để so sánh (VD: ORD-2026-001)
         const orderId = `ORD-${new Date(o.NgayDat).getFullYear()}-${String(o.MaDH).padStart(3, '0')}`.toLowerCase();
 
-        // Quét tìm kiếm qua Mã đơn, Tên khách hàng và cả Email
+        // 1. Logic tìm kiếm (giữ nguyên)
         const matchSearch =
             (o.HoTen || '').toLowerCase().includes(searchLower) ||
             (o.Email || '').toLowerCase().includes(searchLower) ||
             orderId.includes(searchLower);
 
-        // Lọc theo Dropdown Trạng thái
-        const matchStatus = statusFilter === 'Tất cả trạng thái' || o.TrangThai === statusFilter;
+        // 2. Logic lọc theo trạng thái (Cập nhật ở đây)
+        let matchStatus = false;
 
-        // Chỉ hiển thị đơn hàng thỏa mãn CẢ 2 điều kiện
+        if (statusFilter === 'Tất cả trạng thái') {
+            matchStatus = true;
+        } else if (statusFilter === 'nghi vấn (AI)') {
+            // Lọc những đơn có điểm rủi ro cao nhưng chưa bị hủy/chặn hẳn (ví dụ > 0.5)
+            matchStatus = o.RiskScore_AI >= 0.5 && o.RiskScore_AI < 1.0;
+        } else if (statusFilter === 'Bị từ chối (Spam)') {
+            // Lọc những đơn chắc chắn là Spam (IsSpam = true hoặc Risk = 100%)
+            // Hoặc lọc theo đúng text "Bị từ chối (Spam)" nếu backend đã lưu status này
+            matchStatus = o.TrangThai === 'Bị từ chối (Spam)' || o.IsSpam === true || o.RiskScore_AI >= 1.0;
+        } else {
+            // Các trạng thái thông thường (Đang giao, Đã giao, v.v...)
+            matchStatus = o.TrangThai === statusFilter;
+        }
+
         return matchSearch && matchStatus;
     });
 
@@ -164,6 +175,7 @@ export default function OrdersPage() {
                             <option value="Đang giao">🚚 Đang giao</option>
                             <option value="Đã giao">✅ Đã giao</option>
                             <option value="Đã hủy">❌ Đã hủy</option>
+                            <option value="nghi vấn (AI)">⚠️ Nghi vấn (AI)</option>
                             <option value="Bị từ chối (Spam)">⚠️ Bị từ chối (Spam)</option>
                         </select>
                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={16} />
@@ -204,7 +216,27 @@ export default function OrdersPage() {
                                         </td>
                                         <td className="px-6 py-5">{getStatusBadge(o.TrangThai)}</td>
                                         <td className="px-6 py-5">
-                                            {isSpam ? <span className="inline-flex items-center gap-1 text-xs font-bold text-red-400"><AlertTriangle size={14} /> Risk: {(o.RiskScore_AI * 100).toFixed(0)}%</span> : <span className="inline-flex items-center gap-1 text-xs font-bold text-cyan-400"><ShieldCheck size={14} /> Safe</span>}
+                                            {(() => {
+                                                if (o.IsSpam || o.RiskScore_AI >= 1.0) {
+                                                    return (
+                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-red-400">
+                                                            <AlertTriangle size={14} /> Spam: {(o.RiskScore_AI * 100).toFixed(0)}%
+                                                        </span>
+                                                    );
+                                                } else if (o.RiskScore_AI >= 0.5) {
+                                                    return (
+                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-400">
+                                                            <AlertTriangle size={14} /> Nghi vấn: {(o.RiskScore_AI * 100).toFixed(0)}%
+                                                        </span>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-cyan-400">
+                                                            <ShieldCheck size={14} /> Safe
+                                                        </span>
+                                                    );
+                                                }
+                                            })()}
                                         </td>
                                         <td className="px-6 py-5 text-center">
                                             {/* NÚT XEM CHI TIẾT */}
