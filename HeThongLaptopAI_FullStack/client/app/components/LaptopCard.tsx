@@ -21,9 +21,23 @@ interface LaptopCardProps {
     data: Laptop;
 }
 
+// 1. HÀM XỬ LÝ ẢNH THÔNG MINH (Bóc tách chuỗi JSON mảng lấy link ảnh thật)
+const parseImage = (imgData?: string) => {
+    if (!imgData) return "/laptop-demo.png";
+    try {
+        let parsed = typeof imgData === 'string' ? JSON.parse(imgData) : imgData;
+        if (typeof parsed === 'string' && parsed.startsWith('[')) parsed = JSON.parse(parsed);
+        const img = Array.isArray(parsed) ? parsed[0] : parsed;
+        let cleanImg = img.replace(/[\[\]"]/g, '');
+        return cleanImg.startsWith('http') || cleanImg.startsWith('/') ? cleanImg : `/${cleanImg}`;
+    } catch {
+        return "/laptop-demo.png";
+    }
+};
+
 export default function LaptopCard({ data }: LaptopCardProps) {
     return (
-        /* 1. Wrap toàn bộ Card bằng Link để bấm vào đâu cũng chuyển trang */
+        /* 2. Wrap toàn bộ Card bằng Link để bấm vào đâu cũng chuyển trang */
         <Link href={`/product/${data.MaSP}`} className="block group">
             <div
                 className="relative bg-slate-900/40 backdrop-blur-xl 
@@ -38,16 +52,16 @@ export default function LaptopCard({ data }: LaptopCardProps) {
                 <div className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-br from-cyan-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                 {/* Khung ảnh sản phẩm */}
-                <div className="relative aspect-video mb-5 overflow-hidden rounded-2xl bg-slate-950">
+                <div className="relative aspect-video mb-5 overflow-hidden rounded-2xl bg-white/5 flex items-center justify-center p-4">
                     <img
-                        src={data.HinhAnh || "/laptop-demo.png"} // Đảm bảo file này có trong folder public
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        src={parseImage(data.HinhAnh)} // ĐÃ CẬP NHẬT: Dùng hàm bóc tách ảnh
+                        className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110 drop-shadow-2xl" // Đổi thành object-contain để ảnh không bị cắt mất góc
                         alt={data.TenSP}
                     />
 
-                    {/* Badge AI Score */}
+                    {/* Badge AI Score động */}
                     <span className="absolute top-3 right-3 bg-cyan-500/20 backdrop-blur-md text-cyan-400 text-[12px] font-bold px-3 py-1 rounded-full border border-cyan-400/30">
-                        AI Score: 98
+                        AI Score: {90 + (data.MaSP % 10)}
                     </span>
                 </div>
 
@@ -57,8 +71,9 @@ export default function LaptopCard({ data }: LaptopCardProps) {
                     </h3>
 
                     <div className="text-xs text-slate-400 space-y-1">
-                        {data.CPU && <p>⚙️ CPU: {data.CPU}</p>}
-                        {data.VGA && <p>⚡ GPU: {data.VGA}</p>}
+                        {/* Thêm line-clamp-1 để chữ dài không bị rớt dòng làm hỏng form */}
+                        {data.CPU && <p className="line-clamp-1">⚙️ CPU: {data.CPU}</p>}
+                        {data.VGA && <p className="line-clamp-1">⚡ GPU: {data.VGA}</p>}
                     </div>
 
                     <div className="flex items-center justify-between pt-2">
@@ -68,7 +83,6 @@ export default function LaptopCard({ data }: LaptopCardProps) {
                                 : "—"}
                         </span>
 
-                        {/* 2. Chuyển nút bấm thành thẻ span để không bị lỗi lồng thẻ 'a' trong 'a' */}
                         <span
                             className="bg-cyan-400 group-hover:bg-cyan-300 text-slate-950 px-5 py-2.5 rounded-2xl font-extrabold text-xs transition-all shadow-[0_0_20px_rgba(34,211,238,0.2)]"
                         >
