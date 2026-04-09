@@ -90,7 +90,21 @@ export default function CheckoutPage() {
             setIsProcessing(false);
         }
     };
-
+    const parseImage = (imgData: string) => {
+        try {
+            if (!imgData) return "/laptop-demo.png";
+            // Parse nếu là chuỗi JSON, nếu không thì giữ nguyên
+            let parsed = typeof imgData === 'string' ? JSON.parse(imgData) : imgData;
+            // Nếu là mảng, lấy cái đầu tiên
+            const img = Array.isArray(parsed) ? parsed[0] : parsed;
+            // Xóa các ký tự thừa như dấu ngoặc, dấu nháy
+            let cleanImg = img.replace(/[\[\]"]/g, '');
+            // Kiểm tra xem có cần thêm dấu gạch chéo ở đầu không
+            return cleanImg.startsWith('http') || cleanImg.startsWith('/') ? cleanImg : `/${cleanImg}`;
+        } catch (e) {
+            return "/laptop-demo.png"; // Trả về ảnh mặc định nếu lỗi parse
+        }
+    };
     if (loading) return <div className="min-h-screen bg-[#080d17] flex items-center justify-center text-cyan-400 font-bold italic">AI ĐANG QUÉT DỮ LIỆU THANH TOÁN...</div>;
 
     return (
@@ -171,7 +185,14 @@ export default function CheckoutPage() {
                             {cartItems.map((item) => (
                                 <div key={item.MaSP} className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-slate-950 rounded-lg p-1 shrink-0">
-                                        <img src={item.HinhAnh || '/laptop-demo.png'} className="w-full h-full object-contain" />
+                                        <div className="w-32 h-32 bg-slate-950/50 rounded-2xl p-4 shrink-0 flex items-center justify-center">
+                                            {/* Sử dụng hàm parseImage để lấy link ảnh chuẩn */}
+                                            <img
+                                                src={parseImage(item.HinhAnh)}
+                                                className="max-h-full object-contain rounded-3xl w-64 shadow-2xl"
+                                                alt={item.TenSP}
+                                            />
+                                        </div>
                                     </div>
                                     <div className="flex-grow">
                                         <p className="text-xs font-bold text-white uppercase truncate w-40">{item.TenSP}</p>
@@ -220,20 +241,23 @@ export default function CheckoutPage() {
                             <h2 className="text-2xl font-black text-white uppercase italic italic">Quét mã thanh toán</h2>
                             <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Đơn hàng #{orderId}</p>
                         </div>
-
                         {/* Vùng chứa mã QR */}
                         <div className="bg-white p-4 rounded-3xl inline-block shadow-[0_0_50px_rgba(34,211,238,0.2)]">
                             {formData.phuongThucTT === 'Chuyển khoản ngân hàng' ? (
                                 <img
-                                    // API VietQR: Ngân hàng (vcb), Số TK (123456), Template (compact), Số tiền, Nội dung
-                                    src={`https://img.vietqr.io/image/vcb-1025542714-compact2.png?amount=${subtotal}&addInfo=THANH TOAN DON HANG ${orderId}`}
-                                    alt="QR Bank" className="w-64 h-64 object-contain"
+                                    // Cấu trúc API VietQR cho BIDV:
+                                    // vcb -> thay bằng bidv
+                                    // 123456789 -> thay bằng số tài khoản của bạn
+                                    // amount=${tongTien} -> tự động điền số tiền từ biến đơn hàng
+                                    src={`https://img.vietqr.io/image/bidv-6505131693-compact.png?amount=${formData.tongTien || 0}&addInfo=THANH TOAN DON HANG ${orderId}`}
+                                    alt="QR Bank BIDV"
+                                    className="w-64 h-64 object-contain"
                                 />
                             ) : (
                                 <img
-                                    // Thay link này bằng ảnh QR MoMo cá nhân của bro
-                                    src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=0912345678"
-                                    alt="QR MoMo" className="w-64 h-64 object-contain"
+                                    src="/uploads/1.png"
+                                    alt="QR MoMo"
+                                    className="w-64 h-64 object-contain"
                                 />
                             )}
                         </div>
