@@ -4,7 +4,7 @@ const { sql, poolPromise } = require('../config/db');
 const Groq = require('groq-sdk');
 
 // Khởi tạo Groq với API Key của bro
-const groq = new Groq({ apiKey: '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' });
+const groq = new Groq({ apiKey: '' });
 
 router.post('/ask', async (req, res) => {
     const { message, maTK } = req.body;
