@@ -28,3 +28,16 @@
         @apply hover:bg-card-navy/80 hover:scale-[1.02] hover:border-neon-cyan/30;
     }
 }
+.markdown-content p {
+    margin-bottom: 8px; /* Khoảng cách giữa các đoạn văn */
+}
+
+.markdown-content ul {
+    list-style-type: disc;
+    margin-left: 15px;
+    margin-bottom: 10px;
+}
+
+.markdown-content strong {
+    color: #22d3ee; /* Màu xanh cyan cho các chỗ in đậm */
+}

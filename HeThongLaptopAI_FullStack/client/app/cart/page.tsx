@@ -72,7 +72,22 @@ export default function CartPage() {
             alert("Lỗi khi xóa!");
         }
     };
-
+    // --- 5. XỬ LÝ ẢNH JSON ---
+    const parseImage = (imgData: string) => {
+        try {
+            if (!imgData) return "/laptop-demo.png";
+            // Parse nếu là chuỗi JSON, nếu không thì giữ nguyên
+            let parsed = typeof imgData === 'string' ? JSON.parse(imgData) : imgData;
+            // Nếu là mảng, lấy cái đầu tiên
+            const img = Array.isArray(parsed) ? parsed[0] : parsed;
+            // Xóa các ký tự thừa như dấu ngoặc, dấu nháy
+            let cleanImg = img.replace(/[\[\]"]/g, '');
+            // Kiểm tra xem có cần thêm dấu gạch chéo ở đầu không
+            return cleanImg.startsWith('http') || cleanImg.startsWith('/') ? cleanImg : `/${cleanImg}`;
+        } catch (e) {
+            return "/laptop-demo.png"; // Trả về ảnh mặc định nếu lỗi parse
+        }
+    };
     // --- 4. LOGIC THANH TOÁN (CHECKOUT - TRANSACTION) ---
     const handleCheckout = async () => {
         if (cartItems.length === 0) return alert("Giỏ hàng trống bro ơi!");
@@ -149,7 +164,12 @@ export default function CartPage() {
                                     cartItems.map((item) => (
                                         <div key={item.MaSP} className="bg-[#1e293b]/20 backdrop-blur-xl border border-white/5 rounded-[2rem] p-6 flex gap-8 items-center group hover:border-cyan-500/30 transition-all">
                                             <div className="w-32 h-32 bg-slate-950/50 rounded-2xl p-4 shrink-0 flex items-center justify-center">
-                                                <img src={item.HinhAnh || '/laptop-demo.png'} className="max-w-full max-h-full object-contain" alt={item.TenSP} />
+                                                {/* Sử dụng hàm parseImage để lấy link ảnh chuẩn */}
+                                                <img
+                                                    src={parseImage(item.HinhAnh)}
+                                                    className="max-h-full object-contain rounded-3xl w-64 shadow-2xl"
+                                                    alt={item.TenSP}
+                                                />
                                             </div>
 
                                             <div className="flex-grow">
