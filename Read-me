@@ -49,3 +49,16 @@ npm install recharts lucide-react
 
 Cài đặt multer (server)
 npm install multer
+
+CREATE TABLE SanPhamYeuThich (
+    MaTK INT, -- Khóa ngoại liên kết tới bảng TaiKhoan
+    MaSP INT, -- Khóa ngoại liên kết tới bảng SanPham
+    NgayThem DATETIME DEFAULT GETDATE(), -- Lưu ngày người dùng bấm thích
+    
+    -- Khóa chính phức hợp (MaTK, MaSP) để một người không thể thích 1 máy 2 lần
+    PRIMARY KEY (MaTK, MaSP),
+    
+    -- Ràng buộc khóa ngoại để đảm bảo dữ liệu sạch
+    FOREIGN KEY (MaTK) REFERENCES TaiKhoan(MaTK),
+    FOREIGN KEY (MaSP) REFERENCES SanPham(MaSP)
+);

@@ -31,6 +31,8 @@ export default function ProductDetail(): JSX.Element {
     const [item, setItem] = useState<Laptop | null>(null);
     const [selectedImage, setSelectedImage] = useState(0);
     const [activeTab, setActiveTab] = useState('specs');
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [isCheckingFav, setIsCheckingFav] = useState(false);
 
     // --- 1. THÊM STATE SỐ LƯỢNG ---
     const [quantity, setQuantity] = useState(1);
@@ -46,7 +48,62 @@ export default function ProductDetail(): JSX.Element {
                 setItem(null);
             });
     }, [id]);
+    useEffect(() => {
+        const checkFavoriteStatus = async () => {
+            const storedUser = localStorage.getItem('user');
+            if (!storedUser || !item) return;
 
+            const user = JSON.parse(storedUser);
+            try {
+                // Gọi API lấy danh sách yêu thích của User để check
+                const res = await fetch(`http://localhost:5000/api/laptops/favorites/${user.MaTK}`);
+                const favs = await res.json();
+                if (Array.isArray(favs)) {
+                    const found = favs.some((fav: any) => fav.MaSP === item.MaSP);
+                    setIsFavorite(found);
+                }
+            } catch (err) {
+                console.error("Lỗi check yêu thích:", err);
+            }
+        };
+
+        checkFavoriteStatus();
+    }, [item]); // Chạy lại khi thông tin máy (item) đã load xong
+
+    // 2. Hàm xử lý khi bấm nút Trái tim
+    const handleToggleFavorite = async () => {
+        const storedUser = localStorage.getItem('user');
+        if (!storedUser) {
+            alert("Đăng nhập để thả tim cho siêu phẩm này bro nhé!");
+            router.push('/login');
+            return;
+        }
+
+        const user = JSON.parse(storedUser);
+        if (!item || isCheckingFav) return;
+
+        setIsCheckingFav(true);
+        try {
+            const res = await fetch(`http://localhost:5000/api/laptops/toggle-favorite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    maTK: user.MaTK,
+                    maSP: item.MaSP
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                setIsFavorite(data.action === 'added');
+                // Có thể thêm thông báo nhỏ (Toast) ở đây
+            }
+        } catch (err) {
+            alert("Lỗi kết nối rồi bro!");
+        } finally {
+            setIsCheckingFav(false);
+        }
+    };
     // --- 2. LOGIC THÊM VÀO GIỎ HÀNG ---
     const handleAddToCart = async () => {
         const storedUser = typeof window !== "undefined" ? localStorage.getItem('user') : null;
@@ -220,8 +277,21 @@ export default function ProductDetail(): JSX.Element {
                                 {(item.SoLuongTon ?? 0) <= 0 ? 'HẾT HÀNG' : 'THÊM VÀO GIỎ HÀNG'}
                             </button>
 
-                            <button className="w-16 h-16 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/5 text-slate-400 hover:text-red-500 transition-all">
-                                <Heart size={20} />
+                            <button
+                                onClick={handleToggleFavorite}
+                                disabled={isCheckingFav}
+                                className={`w-16 h-16 border rounded-2xl flex items-center justify-center transition-all active:scale-90
+                                    ${isFavorite
+                                        ? 'bg-red-500/10 border-red-500/50 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                                        : 'border-white/10 text-slate-400 hover:bg-white/5 hover:text-red-400'
+                                    }`}
+                            >
+                                {/* Nếu đã thích thì fill đỏ, chưa thì để rỗng */}
+                                <Heart
+                                    size={20}
+                                    fill={isFavorite ? "currentColor" : "none"}
+                                    className={isCheckingFav ? "animate-pulse" : ""}
+                                />
                             </button>
                         </div>
 
