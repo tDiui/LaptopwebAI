@@ -406,4 +406,68 @@ router.put('/orders/:id/payment', async (req, res) => {
     }
 });
 
+// ==========================================
+// QUẢN LÝ ĐÁNH GIÁ (DanhGia)
+// ==========================================
+
+// 1. Lấy danh sách (ĐÃ FIX LỖI HÌNH ẢNH - Thêm sp.HinhAnh và dg.PhanHoiAdmin)
+router.get('/reviews', async (req, res) => {
+    try {
+        let pool = await sql.connect(dbConfig);
+        let result = await pool.request().query(`
+            SELECT 
+                dg.MaDG, dg.SoSao, dg.NoiDung, dg.NgayDang, dg.TrangThai, dg.PhanHoiAdmin,
+                tk.HoTen, sp.TenSP, sp.HinhAnh 
+            FROM DanhGia dg
+            LEFT JOIN TaiKhoan tk ON dg.MaTK = tk.MaTK
+            LEFT JOIN SanPham sp ON dg.MaSP = sp.MaSP
+            ORDER BY dg.NgayDang DESC
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. Cập nhật trạng thái (Duyệt/Từ chối)
+router.put('/reviews/:id/status', async (req, res) => {
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('MaDG', sql.Int, req.params.id)
+            .input('TrangThai', sql.Bit, req.body.trangThai)
+            .query("UPDATE DanhGia SET TrangThai = @TrangThai WHERE MaDG = @MaDG");
+        res.json({ message: "Cập nhật thành công!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. API MỚI: Admin Gửi phản hồi
+router.put('/reviews/:id/reply', async (req, res) => {
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('MaDG', sql.Int, req.params.id)
+            .input('PhanHoi', sql.NVarChar, req.body.phanHoi)
+            .query("UPDATE DanhGia SET PhanHoiAdmin = @PhanHoi WHERE MaDG = @MaDG");
+        res.json({ message: "Đã gửi phản hồi!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Xóa vĩnh viễn
+router.delete('/reviews/:id', async (req, res) => {
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('MaDG', sql.Int, req.params.id)
+            .query("DELETE FROM DanhGia WHERE MaDG = @MaDG");
+        res.json({ message: "Đã xóa đánh giá!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
