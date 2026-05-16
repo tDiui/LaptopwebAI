@@ -4,9 +4,10 @@
     "\\HeThongLaptopAI_FullStack",
     "\\HeThongLaptopAI_FullStack\\client",
     "\\HeThongLaptopAI_FullStack\\client\\app",
-    "\\HeThongLaptopAI_FullStack\\client\\app\\components",
-    "\\HeThongLaptopAI_FullStack\\server"
+    "\\HeThongLaptopAI_FullStack\\client\\app\\product\\[id]",
+    "\\HeThongLaptopAI_FullStack\\server",
+    "\\HeThongLaptopAI_FullStack\\server\\routes"
   ],
-  "SelectedNode": "\\HeThongLaptopAI_FullStack\\client\\app\\components\\LaptopCard.tsx",
+  "SelectedNode": "\\HeThongLaptopAI_FullStack\\server\\routes\\laptopRoutes.js",
   "PreviewInSolutionExplorer": false
 }

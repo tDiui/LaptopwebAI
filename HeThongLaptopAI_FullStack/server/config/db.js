@@ -1,14 +1,7 @@
 ﻿const sql = require('mssql/msnodesqlv8');
 
 const dbConfig = {
-    server: 'localhost\\SQLEXPRESS', // Hoặc tên server của bro
-    database: 'QLCuaHangLaptop',
-    driver: 'msnodesqlv8',
-    options: {
-        trustedConnection: true,
-        trustServerCertificate: true,
-        enableArithAbort: true // Thêm cái này cho ổn định
-    }
+    connectionString: "Driver={ODBC Driver 17 for SQL Server};Server=localhost\\SQLEXPRESS;Database=QLCuaHangLaptop;Trusted_Connection=Yes;"
 };
 
 // Khởi tạo kết nối ngay lập tức

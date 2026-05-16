@@ -5,8 +5,8 @@ import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import {
     Cpu, Zap, Monitor, HardDrive, ShieldCheck, ChevronLeft,
-    Star, ShoppingCart, Heart, Share2, MessageSquare, Info,
-    Battery, Weight, Check, Sparkles, Minus, Plus, Loader2
+    Star, ShoppingCart, Heart, MessageSquare, Info,
+    Weight, Check, Sparkles, Minus, Plus, Loader2, Send
 } from 'lucide-react';
 
 type Laptop = {
@@ -31,15 +31,24 @@ export default function ProductDetail(): JSX.Element {
     const [item, setItem] = useState<Laptop | null>(null);
     const [selectedImage, setSelectedImage] = useState(0);
     const [activeTab, setActiveTab] = useState('specs');
+    const [similarProducts, setSimilarProducts] = useState<Laptop[]>([]);
+    // States cơ bản
     const [isFavorite, setIsFavorite] = useState(false);
     const [isCheckingFav, setIsCheckingFav] = useState(false);
-
-    // --- 1. THÊM STATE SỐ LƯỢNG ---
     const [quantity, setQuantity] = useState(1);
     const [isAdding, setIsAdding] = useState(false);
 
+    // States Đánh giá
+    const [reviews, setReviews] = useState<any[]>([]);
+    const [newRating, setNewRating] = useState(5);
+    const [newComment, setNewComment] = useState("");
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+    // Load Data
     useEffect(() => {
         if (!id) return;
+
+        // Load thông tin Laptop
         fetch(`http://localhost:5000/api/laptops/${id}`)
             .then(res => res.json())
             .then((data: Laptop) => setItem(data))
@@ -47,7 +56,25 @@ export default function ProductDetail(): JSX.Element {
                 console.error(err);
                 setItem(null);
             });
+
+        // Load Đánh giá (chỉ lấy bài đã duyệt)
+        fetch(`http://localhost:5000/api/laptops/${id}/reviews`)
+            .then(res => res.json())
+            .then(data => setReviews(Array.isArray(data) ? data : []))
+            .catch(err => console.error("Lỗi fetch reviews:", err));
+
     }, [id]);
+
+    // 2. Hook fetch sản phẩm tương tự (TÁCH RIÊNG RA ĐÂY)
+    useEffect(() => {
+        if (!id) return;
+        // Lấy máy tương tự dựa trên ID máy hiện tại
+        fetch(`http://localhost:5000/api/laptops/similar/${id}`)
+            .then(res => res.json())
+            .then(data => setSimilarProducts(Array.isArray(data) ? data : []))
+            .catch(err => console.error("Lỗi fetch máy tương tự:", err));
+    }, [id]);
+
     useEffect(() => {
         const checkFavoriteStatus = async () => {
             const storedUser = localStorage.getItem('user');
@@ -55,7 +82,6 @@ export default function ProductDetail(): JSX.Element {
 
             const user = JSON.parse(storedUser);
             try {
-                // Gọi API lấy danh sách yêu thích của User để check
                 const res = await fetch(`http://localhost:5000/api/laptops/favorites/${user.MaTK}`);
                 const favs = await res.json();
                 if (Array.isArray(favs)) {
@@ -68,9 +94,9 @@ export default function ProductDetail(): JSX.Element {
         };
 
         checkFavoriteStatus();
-    }, [item]); // Chạy lại khi thông tin máy (item) đã load xong
+    }, [item]);
 
-    // 2. Hàm xử lý khi bấm nút Trái tim
+    // Handle Actions
     const handleToggleFavorite = async () => {
         const storedUser = localStorage.getItem('user');
         if (!storedUser) {
@@ -87,24 +113,18 @@ export default function ProductDetail(): JSX.Element {
             const res = await fetch(`http://localhost:5000/api/laptops/toggle-favorite`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    maTK: user.MaTK,
-                    maSP: item.MaSP
-                })
+                body: JSON.stringify({ maTK: user.MaTK, maSP: item.MaSP })
             });
 
             const data = await res.json();
-            if (res.ok) {
-                setIsFavorite(data.action === 'added');
-                // Có thể thêm thông báo nhỏ (Toast) ở đây
-            }
+            if (res.ok) setIsFavorite(data.action === 'added');
         } catch (err) {
             alert("Lỗi kết nối rồi bro!");
         } finally {
             setIsCheckingFav(false);
         }
     };
-    // --- 2. LOGIC THÊM VÀO GIỎ HÀNG ---
+
     const handleAddToCart = async () => {
         const storedUser = typeof window !== "undefined" ? localStorage.getItem('user') : null;
         if (!storedUser) {
@@ -117,16 +137,11 @@ export default function ProductDetail(): JSX.Element {
         if (!item) return;
 
         setIsAdding(true);
-
         try {
             const res = await fetch(`http://localhost:5000/api/cart/add`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    maTK: user.MaTK,
-                    maSP: item.MaSP,
-                    soLuong: quantity
-                })
+                body: JSON.stringify({ maTK: user.MaTK, maSP: item.MaSP, soLuong: quantity })
             });
 
             if (res.ok) {
@@ -136,10 +151,51 @@ export default function ProductDetail(): JSX.Element {
                 alert("Lỗi: " + (errorData.error || 'Unknown error'));
             }
         } catch (err) {
-            console.error(err);
             alert("Không kết nối được với Server!");
         } finally {
             setIsAdding(false);
+        }
+    };
+
+    // HANDLE SUBMIT REVIEW
+    const handleSubmitReview = async () => {
+        const storedUser = localStorage.getItem('user');
+        if (!storedUser) {
+            alert("Bro cần đăng nhập để viết đánh giá nhé!");
+            router.push('/login');
+            return;
+        }
+        if (!newComment.trim()) {
+            alert("Bro quên nhập nội dung đánh giá kìa!");
+            return;
+        }
+
+        const user = JSON.parse(storedUser);
+        setIsSubmittingReview(true);
+
+        try {
+            const res = await fetch(`http://localhost:5000/api/laptops/reviews`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    MaTK: user.MaTK,
+                    MaSP: item?.MaSP,
+                    SoSao: newRating,
+                    NoiDung: newComment
+                })
+            });
+
+            if (res.ok) {
+                alert("Cảm ơn bro! Đánh giá đã được gửi và đang chờ Admin duyệt.");
+                setNewComment("");
+                setNewRating(5);
+            } else {
+                alert("Có lỗi xảy ra khi gửi đánh giá.");
+            }
+        } catch (error) {
+            alert("Lỗi máy chủ!");
+        } finally {
+            setIsSubmittingReview(false);
         }
     };
 
@@ -152,23 +208,19 @@ export default function ProductDetail(): JSX.Element {
         </div>
     );
 
-    // --- LOGIC XỬ LÝ ẢNH THÔNG MINH ---
+    // Xử lý ảnh
     let images: string[] = [];
     if (item.HinhAnh) {
         try {
-            // HinhAnh có thể là chuỗi JSON hoặc chuỗi đơn
             if (typeof item.HinhAnh === 'string') {
                 const parsed = JSON.parse(item.HinhAnh);
-                if (Array.isArray(parsed)) images = parsed;
-                else if (typeof parsed === 'string') images = [parsed];
-                else images = [item.HinhAnh];
+                images = Array.isArray(parsed) ? parsed : (typeof parsed === 'string' ? [parsed] : [item.HinhAnh]);
             } else if (Array.isArray(item.HinhAnh)) {
                 images = item.HinhAnh;
             } else {
                 images = [String(item.HinhAnh)];
             }
         } catch {
-            // Nếu không phải JSON, dùng trực tiếp
             images = Array.isArray(item.HinhAnh) ? item.HinhAnh : [String(item.HinhAnh)];
         }
     }
@@ -189,7 +241,7 @@ export default function ProductDetail(): JSX.Element {
                 </Link>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-                    {/* Cột 1: Gallery */}
+                    {/* CỘT 1: ẢNH */}
                     <div className="lg:sticky lg:top-28 h-fit space-y-6">
                         <div className="relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] overflow-hidden aspect-square flex items-center justify-center p-8 group shadow-2xl">
                             <img
@@ -202,7 +254,6 @@ export default function ProductDetail(): JSX.Element {
                             </div>
                         </div>
 
-                        {/* Thumbnail list */}
                         {images.length > 1 && (
                             <div className="flex gap-4">
                                 {images.map((img, index) => (
@@ -212,7 +263,7 @@ export default function ProductDetail(): JSX.Element {
                                         className={`flex-1 aspect-square rounded-2xl overflow-hidden border-2 transition-all ${currentImageIndex === index
                                             ? 'border-cyan-500 ring-4 ring-cyan-500/10'
                                             : 'border-white/5 opacity-50 hover:opacity-100 hover:border-white/20'
-                                        }`}
+                                            }`}
                                     >
                                         <img src={img} className="w-full h-full object-cover" alt={`thumb-${index}`} />
                                     </button>
@@ -221,19 +272,18 @@ export default function ProductDetail(): JSX.Element {
                         )}
                     </div>
 
-                    {/* Cột 2: Thông tin & Actions */}
+                    {/* CỘT 2: THÔNG TIN CƠ BẢN */}
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2 mb-2">
                             <div className="flex text-yellow-500">
                                 {[...Array(5)].map((_, i) => <Star key={i} size={14} fill={i < 4 ? "currentColor" : "none"} />)}
                             </div>
                             <span className="text-slate-400 font-bold ml-2">4.9</span>
-                            <span className="text-slate-500 text-xs">(245 đánh giá)</span>
+                            <span className="text-slate-500 text-xs">({reviews.length} đánh giá)</span>
                         </div>
 
                         <h1 className="text-5xl font-black text-white mb-6 tracking-tighter leading-tight uppercase">{item.TenSP}</h1>
 
-                        {/* AI Performance Card */}
                         <div className="bg-gradient-to-br from-cyan-950/40 to-slate-900/40 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-6 mb-8 flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="text-cyan-400 bg-cyan-500/10 p-3 rounded-xl shadow-[0_0_15px_rgba(34,211,238,0.2)]">
@@ -286,7 +336,6 @@ export default function ProductDetail(): JSX.Element {
                                         : 'border-white/10 text-slate-400 hover:bg-white/5 hover:text-red-400'
                                     }`}
                             >
-                                {/* Nếu đã thích thì fill đỏ, chưa thì để rỗng */}
                                 <Heart
                                     size={20}
                                     fill={isFavorite ? "currentColor" : "none"}
@@ -306,7 +355,6 @@ export default function ProductDetail(): JSX.Element {
                             {item.MoTa || "Siêu phẩm laptop tích hợp chip AI mạnh mẽ, hiệu năng đỉnh cao cho công việc chuyên nghiệp."}
                         </p>
 
-                        {/* Quick Specs Grid */}
                         <div className="grid grid-cols-2 gap-3">
                             <QuickSpec icon={<Cpu size={16} />} label="CPU" value={item.CPU} />
                             <QuickSpec icon={<Zap size={16} />} label="GPU" value={item.VGA} />
@@ -316,16 +364,16 @@ export default function ProductDetail(): JSX.Element {
                     </div>
                 </div>
 
-                {/* Tabs Section */}
+                {/* TABS NỘI DUNG */}
                 <div className="mt-12 rounded-3xl border border-white/10 bg-[#0f172a]/60 backdrop-blur-xl overflow-hidden">
                     <div className="flex border-b border-white/10 text-sm font-semibold">
                         <TabItem active={activeTab === 'specs'} onClick={() => setActiveTab('specs')} icon={<Info size={16} />} label="Thông số kỹ thuật" />
                         <TabItem active={activeTab === 'features'} onClick={() => setActiveTab('features')} icon={<Check size={16} />} label="Tính năng" />
                         <TabItem active={activeTab === 'ai'} onClick={() => setActiveTab('ai')} icon={<Sparkles size={16} />} label="AI Insights" />
-                        <TabItem active={activeTab === 'reviews'} onClick={() => setActiveTab('reviews')} icon={<MessageSquare size={16} />} label="Đánh giá" />
+                        <TabItem active={activeTab === 'reviews'} onClick={() => setActiveTab('reviews')} icon={<MessageSquare size={16} />} label={`Đánh giá (${reviews.length})`} />
                     </div>
 
-                    <div className="p-10">
+                    <div className="p-6 md:p-10">
                         {activeTab === 'specs' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-10 gap-x-16">
                                 <DetailRow icon={<Cpu size={16} />} label="Vi xử lý (CPU)" value={item.CPU} />
@@ -354,28 +402,162 @@ export default function ProductDetail(): JSX.Element {
                                     <AIStat label="Model Training" score="94" />
                                     <AIStat label="Overall AI" score="98" />
                                 </div>
-                                <div className="p-4 bg-cyan-400/5 border border-cyan-400/20 rounded-xl flex gap-3 italic text-cyan-200">
-                                    <Sparkles className="shrink-0" /> Gợi ý: Phù hợp cho Video Editing 8K và Machine Learning chuyên sâu.
-                                </div>
                             </div>
                         )}
+
+                        {/* TAB ĐÁNH GIÁ ĐÃ CẬP NHẬT */}
                         {activeTab === 'reviews' && (
-                            <div className="text-center py-10">
-                                <MessageSquare size={40} className="mx-auto mb-4 text-slate-600" />
-                                <h3 className="text-lg font-bold text-white mb-2">Chưa có đánh giá nào</h3>
-                                <p className="text-slate-500">Hãy là người đầu tiên sở hữu và đánh giá siêu phẩm này nhé bro!</p>
-                                <button className="mt-6 text-cyan-400 font-bold border border-cyan-400/30 px-6 py-2 rounded-xl hover:bg-cyan-400/10 transition-all">
-                                    Viết đánh giá ngay
-                                </button>
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+
+                                {/* Form Viết đánh giá */}
+                                <div className="lg:col-span-1 bg-slate-900/40 p-6 rounded-2xl border border-white/5 h-fit">
+                                    <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                        <MessageSquare size={18} className="text-cyan-400" /> Viết đánh giá của bạn
+                                    </h3>
+
+                                    <div className="mb-4">
+                                        <p className="text-xs text-slate-400 uppercase font-bold tracking-widest mb-2">Chất lượng sản phẩm</p>
+                                        <div className="flex gap-2">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <button key={star} onClick={() => setNewRating(star)} className="focus:outline-none">
+                                                    <Star
+                                                        size={24}
+                                                        fill={star <= newRating ? "#eab308" : "none"}
+                                                        className={star <= newRating ? "text-yellow-500" : "text-slate-600"}
+                                                    />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-4">
+                                        <textarea
+                                            rows={4}
+                                            value={newComment}
+                                            onChange={(e) => setNewComment(e.target.value)}
+                                            placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm này..."
+                                            className="w-full bg-[#0b1121] border border-white/10 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-cyan-500/50 resize-none"
+                                        />
+                                    </div>
+
+                                    <button
+                                        onClick={handleSubmitReview}
+                                        disabled={isSubmittingReview}
+                                        className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-sm py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                        {isSubmittingReview ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                        Gửi Đánh Giá
+                                    </button>
+                                </div>
+
+                                {/* Danh sách đánh giá đã duyệt */}
+                                <div className="lg:col-span-2 space-y-4">
+                                    <h3 className="font-bold text-white mb-6 border-b border-white/10 pb-4">Đánh giá từ cộng đồng</h3>
+
+                                    {reviews.length === 0 ? (
+                                        <div className="text-center py-10">
+                                            <p className="text-slate-500 italic">Chưa có đánh giá nào. Hãy là người đầu tiên bóc tem em nó nhé!</p>
+                                        </div>
+                                    ) : (
+                                        reviews.map((rev) => (
+                                            <div key={rev.MaDG} className="bg-slate-800/30 p-5 rounded-2xl border border-white/5">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">
+                                                            {rev.HoTen ? rev.HoTen[0].toUpperCase() : 'U'}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-white text-sm">{rev.HoTen}</p>
+                                                            <div className="flex text-yellow-500 mt-1">
+                                                                {[...Array(5)].map((_, i) => (
+                                                                    <Star key={i} size={12} fill={i < rev.SoSao ? "currentColor" : "none"} />
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs text-slate-500">
+                                                        {new Date(rev.NgayDang).toLocaleDateString('vi-VN')}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-slate-300 leading-relaxed pl-13">
+                                                    {rev.NoiDung}
+                                                </p>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+            {/* --- PHẦN SẢN PHẨM TƯƠNG TỰ --- */}
+            <section className="mt-32 space-y-12">
+                <div className="space-y-3">
+                    <h2 className="text-4xl font-black text-white tracking-tighter italic uppercase underline decoration-cyan-500/20 underline-offset-8">
+                        Sản phẩm tương tự
+                    </h2>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.3em]">
+                        Khám phá các siêu phẩm khác cùng phân khúc AI
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    {similarProducts.map((sp) => (
+                        <Link href={`/product/${sp.MaSP}`} key={sp.MaSP} className="group">
+                            <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-6 hover:border-cyan-500/40 transition-all duration-500 hover:-translate-y-2 h-full flex flex-col shadow-2xl">
+                                {/* Image Container */}
+                                <div className="relative aspect-[16/10] bg-slate-950 rounded-2xl overflow-hidden mb-6 flex items-center justify-center p-6 border border-white/5">
+                                    <img
+                                        src={parseImage(Array.isArray(sp.HinhAnh) ? sp.HinhAnh[0] : String(sp.HinhAnh))}
+                                        className="max-h-full object-contain group-hover:scale-110 transition-transform duration-700"
+                                        alt={sp.TenSP}
+                                    />
+                                    <div className="absolute top-3 right-3 bg-cyan-500/20 backdrop-blur-md border border-cyan-500/30 text-cyan-400 text-[9px] font-black px-2 py-1 rounded-lg">
+                                        AI: 9{Math.floor(Math.random() * 5 + 4)}
+                                    </div>
+                                </div>
+
+                                {/* Content */}
+                                <div className="flex-grow space-y-4">
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Ultra Performance</p>
+                                        <h3 className="text-base font-black text-white truncate uppercase tracking-tighter group-hover:text-cyan-400 transition-colors">
+                                            {sp.TenSP}
+                                        </h3>
+                                    </div>
+
+                                    <div className="flex items-center gap-1 text-yellow-500/80">
+                                        {[1, 2, 3, 4].map(i => <Star key={i} size={10} fill="currentColor" />)}
+                                        <Star size={10} className="text-slate-700" />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                                            <Cpu size={12} className="text-cyan-500/50" /> {sp.CPU || "Intel Core i9"}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                                            <Zap size={12} className="text-cyan-500/50" /> {sp.VGA || "RTX 4070 8GB"}
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-white/5 mt-auto">
+                                        <p className="text-xl font-black text-cyan-400 tracking-tighter">
+                                            {new Intl.NumberFormat('vi-VN').format(sp.GiaBan)}₫
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            </section>
+            {/* --- HẾT PHẦN SẢN PHẨM TƯƠNG TỰ --- */}
         </main>
     );
 }
 
+// CÁC COMPONENT PHỤ TRỢ (Giữ nguyên)
 type QuickSpecProps = { icon: JSX.Element; label: string; value?: string | number | null };
 function QuickSpec({ icon, label, value }: QuickSpecProps): JSX.Element {
     return (
@@ -429,3 +611,16 @@ function DetailRow({ icon, label, value }: DetailRowProps): JSX.Element {
         </div>
     );
 }
+
+const parseImage = (imgData: any) => {
+    if (!imgData) return "/laptop-demo.png";
+    try {
+        let parsed = typeof imgData === 'string' && imgData.startsWith('[')
+            ? JSON.parse(imgData)[0]
+            : imgData;
+        let cleanImg = String(parsed).replace(/[\[\]"]/g, '');
+        return cleanImg.startsWith('http') ? cleanImg : `/${cleanImg.replace(/^\//, '')}`;
+    } catch {
+        return "/laptop-demo.png";
+    }
+};

@@ -25,7 +25,7 @@ export default function FloatingAIButton() {
         setLoading(true);
 
         try {
-            const res = await fetch('http://localhost:5000/api/chat/ask', { // THÊM /ask VÀO ĐÂY
+            const res = await fetch('http://localhost:5000/api/laptops/chat', { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -36,6 +36,7 @@ export default function FloatingAIButton() {
             const data = await res.json();
             setChat(prev => [...prev, { r: 'ai', t: data.reply }]);
         } catch (err) {
+            console.error("Chi tiết lỗi kết nối:", err);
             setChat(prev => [...prev, { r: 'ai', t: 'Vệ tinh mất kết nối, thử lại sau nhé bro!' }]);
         } finally {
             setLoading(false);
@@ -47,7 +48,7 @@ export default function FloatingAIButton() {
             {open && (
                 <div className="mb-4 w-80 h-[450px] bg-[#0f172a]/95 border border-cyan-500/20 rounded-3xl p-5 flex flex-col shadow-[0_0_50px_-12px_rgba(6,182,212,0.5)] backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-4">
                     <div className="border-b border-white/5 pb-3 mb-3">
-                        <p className="text-cyan-400 font-black italic tracking-tighter text-lg">ChatBox Lama</p>
+                        <p className="text-cyan-400 font-black italic tracking-tighter text-lg">ChatBox Gemma 4</p>
                     </div>
 
                     <div className="flex-1 overflow-auto space-y-4 pr-2 custom-scrollbar">

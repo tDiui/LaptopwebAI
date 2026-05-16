@@ -52,8 +52,8 @@ router.post('/login', async (req, res) => {
             res.json({
                 success: true,
                 user: {
-                    MaTK: user.MaTK,   // Giá trị sẽ là 1
-                    HoTen: user.HoTen, // Giá trị sẽ là "213"
+                    MaTK: user.MaTK,
+                    HoTen: user.HoTen,
                     Email: user.Email,
                     VaiTro: user.VaiTro
                 }
@@ -80,7 +80,7 @@ router.get('/profile/:id', async (req, res) => {
     }
 });
 
-// 4. Cập nhật thông tin
+// 4. Cập nhật thông tin (Profile người dùng)
 router.put('/profile/update', async (req, res) => {
     const { maTK, hoTen, soDienThoai, diaChi } = req.body;
     try {
@@ -98,6 +98,68 @@ router.put('/profile/update', async (req, res) => {
         res.json({ success: true, message: "Cập nhật thành công!" });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================================
+// CÁC API DÀNH CHO TRANG SETTINGS (CÀI ĐẶT)
+// ============================================================
+
+// 5. Cập nhật thông tin tài khoản (Chỉ Tên & Email từ Settings)
+router.put('/settings/update-account/:id', async (req, res) => {
+    const { hoTen, email } = req.body;
+    const { id } = req.params;
+
+    try {
+        let pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('HoTen', sql.NVarChar, hoTen)
+            .input('Email', sql.NVarChar, email)
+            .input('MaTK', sql.Int, id)
+            .query(`
+                UPDATE TaiKhoan 
+                SET HoTen = @HoTen, Email = @Email 
+                WHERE MaTK = @MaTK
+            `);
+
+        res.json({ message: "Cập nhật thành công!" });
+    } catch (err) {
+        console.error("Lỗi cập nhật user:", err);
+        res.status(500).json({ error: "Lỗi máy chủ khi cập nhật" });
+    }
+});
+
+// 6. Đổi mật khẩu
+router.put('/settings/change-password/:id', async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const { id } = req.params;
+
+    try {
+        let pool = await sql.connect(dbConfig);
+
+        // Lấy mật khẩu cũ ra kiểm tra
+        const user = await pool.request()
+            .input('MaTK', sql.Int, id)
+            .query(`SELECT MatKhau FROM TaiKhoan WHERE MaTK = @MaTK`);
+
+        if (user.recordset.length === 0) {
+            return res.status(404).json({ error: "Không tìm thấy tài khoản" });
+        }
+
+        if (user.recordset[0].MatKhau !== currentPassword) {
+            return res.status(400).json({ error: "Mật khẩu hiện tại không chính xác!" });
+        }
+
+        // Cập nhật mật khẩu mới
+        await pool.request()
+            .input('MatKhauMoi', sql.NVarChar, newPassword)
+            .input('MaTK', sql.Int, id)
+            .query(`UPDATE TaiKhoan SET MatKhau = @MatKhauMoi WHERE MaTK = @MaTK`);
+
+        res.json({ message: "Đổi mật khẩu thành công!" });
+    } catch (err) {
+        console.error("Lỗi đổi mật khẩu:", err);
+        res.status(500).json({ error: "Lỗi máy chủ khi đổi mật khẩu" });
     }
 });
 

@@ -8,15 +8,24 @@ export default function DashboardPage() {
         tongDonHang: 0,
         tongSanPham: 0,
         tongKhachHang: 0,
-        donHangMoi: []
+        donHangMoi: [],
+        chartData: [] // 👉 THÊM STATE HỨNG DỮ LIỆU BIỂU ĐỒ TỪ BACKEND
     });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Lưu ý: Nếu bro để route trong laptopRoutes, có thể URL phải là /api/laptops/admin/dashboard-stats
         fetch('http://localhost:5000/api/admin/dashboard-stats')
             .then(res => res.json())
             .then(data => {
-                setStats(data);
+                setStats({
+                    tongDoanhThu: data.revenue || data.tongDoanhThu || 0,
+                    tongDonHang: data.orders || data.tongDonHang || 0,
+                    tongSanPham: data.products || data.tongSanPham || 0,
+                    tongKhachHang: data.customers || data.tongKhachHang || 0,
+                    donHangMoi: data.donHangMoi || [],
+                    chartData: data.chartData || [] // 👉 LẤY DATA BIỂU ĐỒ
+                });
                 setLoading(false);
             })
             .catch(err => console.error("Lỗi tải thống kê:", err));
@@ -25,6 +34,11 @@ export default function DashboardPage() {
     if (loading) {
         return <div className="h-full flex items-center justify-center text-cyan-400 font-bold animate-pulse">Đang tải dữ liệu hệ thống...</div>;
     }
+
+    // TÍNH TOÁN CHIỀU CAO TỐI ĐA CHO BIỂU ĐỒ (Để các cột co giãn chuẩn xác)
+    const maxChartValue = stats.chartData.length > 0
+        ? Math.max(...stats.chartData.map((d: any) => Math.max(d.traffic, d.aiRequests)))
+        : 100;
 
     return (
         <div className="space-y-8 relative pb-10">
@@ -66,34 +80,70 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Biểu đồ giả lập (Mock Chart) để làm đẹp UI */}
-                <div className="col-span-2 bg-[#151a25] border border-white/5 rounded-2xl p-6 shadow-lg">
-                    <div className="flex justify-between items-center mb-8">
+                {/* BIỂU ĐỒ CỘT KÉP (DUAL BAR CHART) VỚI DỮ LIỆU THẬT */}
+                <div className="col-span-2 bg-[#151a25] border border-white/5 rounded-2xl p-6 shadow-lg flex flex-col">
+                    <div className="flex justify-between items-start md:items-center mb-8 flex-col md:flex-row gap-4">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg"><Activity size={20} /></div>
                             <h2 className="text-lg font-bold text-white">Lưu lượng truy cập & AI Request</h2>
                         </div>
-                        <select className="bg-[#1e2330] border border-white/5 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none">
-                            <option>7 ngày qua</option>
-                            <option>Tháng này</option>
-                        </select>
-                    </div>
-                    {/* Vẽ biểu đồ dạng cột đơn giản bằng Tailwind */}
-                    <div className="h-64 flex items-end justify-between gap-2 md:gap-6 pt-4 border-b border-white/5">
-                        {[40, 70, 45, 90, 65, 85, 110].map((height, i) => (
-                            <div key={i} className="w-full flex flex-col justify-end items-center group cursor-pointer">
-                                <div className="text-cyan-400 opacity-0 group-hover:opacity-100 text-[10px] font-bold mb-2 transition-opacity">{height * 12}</div>
-                                <div
-                                    className="w-full bg-gradient-to-t from-cyan-500/20 to-cyan-400/80 rounded-t-md hover:to-cyan-300 transition-all duration-500 relative"
-                                    style={{ height: `${height}%` }}
-                                >
-                                    <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-t-md"></div>
-                                </div>
+
+                        <div className="flex items-center gap-4">
+                            {/* Chú thích màu sắc */}
+                            <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-purple-400"></div> Truy cập</div>
+                                <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-cyan-400"></div> AI Request</div>
                             </div>
-                        ))}
+                            <select className="bg-[#1e2330] border border-white/5 rounded-lg px-3 py-1.5 text-xs text-slate-300 outline-none">
+                                <option>7 ngày qua</option>
+                                <option>Tháng này</option>
+                            </select>
+                        </div>
                     </div>
+
+                    {/* VẼ BIỂU ĐỒ */}
+                    <div className="h-64 flex items-end justify-between gap-1 md:gap-4 pt-4 border-b border-white/5 relative">
+                        {stats.chartData && stats.chartData.length > 0 ? stats.chartData.map((day: any, i: number) => {
+                            // Tính toán chiều cao linh hoạt theo phần trăm
+                            const trafficHeight = maxChartValue > 0 ? (day.traffic / maxChartValue) * 100 : 0;
+                            const aiHeight = maxChartValue > 0 ? (day.aiRequests / maxChartValue) * 100 : 0;
+
+                            return (
+                                <div key={i} className="flex-1 flex flex-col justify-end items-center group relative h-full">
+                                    {/* Tooltip hiển thị thông số khi di chuột vào cột */}
+                                    <div className="opacity-0 group-hover:opacity-100 absolute -top-12 bg-[#1e2330] border border-white/10 px-3 py-2 rounded-lg text-xs whitespace-nowrap z-20 pointer-events-none transition-opacity flex flex-col gap-1 shadow-xl">
+                                        <div className="text-white font-black border-b border-white/10 pb-1 mb-1">{day.name}</div>
+                                        <span className="text-purple-400 font-bold">Lượt truy cập: {day.traffic}</span>
+                                        <span className="text-cyan-400 font-bold">AI Xử lý: {day.aiRequests}</span>
+                                    </div>
+
+                                    {/* Cột Kép */}
+                                    <div className="flex items-end justify-center gap-1 w-full h-full">
+                                        {/* Cột Truy cập (Màu Tím) */}
+                                        <div
+                                            className="w-1/2 max-w-[20px] bg-gradient-to-t from-purple-500/20 to-purple-400/80 rounded-t-md group-hover:to-purple-300 transition-all duration-700 min-h-[4px]"
+                                            style={{ height: `${trafficHeight}%` }}
+                                        ></div>
+
+                                        {/* Cột AI Request (Màu Xanh Cyan) */}
+                                        <div
+                                            className="w-1/2 max-w-[20px] bg-gradient-to-t from-cyan-500/20 to-cyan-400/80 rounded-t-md group-hover:to-cyan-300 transition-all duration-700 min-h-[4px]"
+                                            style={{ height: `${aiHeight}%` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            );
+                        }) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">Chưa có dữ liệu tracking</div>
+                        )}
+                    </div>
+
+                    {/* Nhãn trục X (T2, T3, T4...) */}
                     <div className="flex justify-between text-xs text-slate-500 mt-4 px-2 font-medium">
-                        <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+                        {stats.chartData && stats.chartData.length > 0
+                            ? stats.chartData.map((day: any, i: number) => <span key={i} className="flex-1 text-center">{day.name}</span>)
+                            : <><span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span></>
+                        }
                     </div>
                 </div>
 
@@ -142,7 +192,7 @@ function StatCard({ title, value, icon, colorClass, trend }: any) {
                     {icon}
                 </div>
                 {trend && (
-                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
                         <ArrowUpRight size={14} /> {trend}
                     </span>
                 )}
